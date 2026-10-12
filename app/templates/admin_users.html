@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block content %}
+<h1>Пользователи</h1>
+<div class="card"><table class="sortable">
+  <tr><th>Логин</th><th>Имя</th><th>Роль</th><th>Статус</th><th>Действия</th></tr>
+  {% for u in rows %}<tr>
+    <td>{{ u.login }}</td><td>{{ u.full_name }}</td>
+    <td><form method="post" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="set_role"><input type="hidden" name="user_id" value="{{ u.id }}">
+      <select name="role">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if u.role == r }}>{{ role_labels[r] }}</option>{% endfor %}</select><button>Изменить</button></form></td>
+    <td class="{{ 'ok' if u.is_active else 'err' }}">{{ 'активен' if u.is_active else 'отключён' }}</td>
+    <td><form method="post" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="user_id" value="{{ u.id }}">
+      <button name="action" value="{{ 'deactivate' if u.is_active else 'activate' }}">{{ 'Отключить' if u.is_active else 'Включить' }}</button>
+      <input name="password" type="password" placeholder="новый пароль" autocomplete="new-password" size="14"><button name="action" value="reset_password">Сменить пароль</button></form></td>
+  </tr>{% endfor %}
+</table></div>
+<div class="card"><h2>Новый пользователь</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="create">
+  <div class="grid"><div><label>Логин</label><input name="login" required></div><div><label>Имя</label><input name="full_name" required></div>
+  <div><label>Роль</label><select name="role">{% for r in roles %}<option value="{{ r }}">{{ role_labels[r] }}</option>{% endfor %}</select></div>
+  <div><label>Пароль (не короче {{ min_len }})</label><input name="password" type="password" autocomplete="new-password" required></div></div>
+  <p><button class="primary">Создать</button></p></form>
+  <p class="muted" style="font-size:13px">Наблюдатель только просматривает. Физик вводит измерения. Проверяющий утверждает чужие записи. Администратор управляет пользователями, оборудованием и базой.</p>
+</div>
+{% endblock %}

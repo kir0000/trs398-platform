@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Протокол №{{ s.protocol_no }}{% endblock %}
+{% block content %}
+<div class="row" style="justify-content:space-between">
+  <h1 style="margin:0">Протокол № {{ s.protocol_no }} <span class="pill s-{{ s.status }}">{{ status_labels[s.status] }}</span></h1>
+  <span><a class="btn" href="/measurements/{{ s.id }}/print" target="_blank">Печать протокола</a></span>
+</div>
+<p class="muted">{{ s.measured_on.strftime('%d.%m.%Y') }} · {{ 'фотоны' if s.modality == 'photon' else 'электроны' }} · {{ beam }} · автор: {{ s.creator }}
+{% if s.approver %} · утвердил: {{ s.approver }} ({{ s.approved_at.strftime('%d.%m.%Y %H:%M') }}){% endif %}
+{% if s.supersedes_id %} · заменяет запись <a href="/measurements/{{ s.supersedes_id }}">№{{ s.supersedes_id }}</a> ({{ s.supersede_reason }}){% endif %}</p>
+{% if s.status == 'voided' %}<div class="card err">Запись аннулирована {{ s.voided_at.strftime('%d.%m.%Y') }}: {{ s.void_reason }}. В трендах и бюджете неопределённости не учитывается.</div>{% endif %}
+{% if s.review_comment %}<div class="card warn">Комментарий проверяющего: {{ s.review_comment }}</div>{% endif %}
+
+<div class="card">
+  <h2>Результат</h2>
+  {% if res %}
+  <table>
+    <tr><th>{% filter sym %}kTP{% endfilter %}</th><th>{% filter sym %}kelec{% endfilter %}</th><th>{% filter sym %}kpol{% endfilter %}</th><th>{% filter sym %}ks{% endfilter %}</th><th>{% filter sym %}kvol{% endfilter %}</th><th>{% filter sym %}kQ{% endfilter %}</th></tr>
+    <tr><td>{{ '%.5f'|format(res.k_tp) }}</td><td>{{ '%.5f'|format(res.k_elec) }}</td><td>{{ '%.5f'|format(res.k_pol) }}</td><td>{{ '%.5f'|format(res.k_s) }}</td><td>{{ '%.5f'|format(res.k_vol) }}</td><td>{{ '%.5f'|format(res.k_q) }}</td></tr>
+  </table>
+  <p>{% filter sym %}MQ:{% endfilter %} {{ '%.6f'|format(res.m_corrected) }} {% filter sym %}нКл/MU · Dw(zref):{% endfilter %} {{ '%.6f'|format(res.dw_zref) }} Гр/MU</p>
+  {% if res.dw_zmax is none %}<p class="big">{% filter sym %}Dw(zref) ={% endfilter %} {{ '%.6f'|format(res.dw_zref) }} Гр/MU · {{ '%+.2f'|format(res.deviation_pct) }} % от ожидаемых {{ s.extra.form.exp_cgy_mu }} сГр/MU</p>
+  <p class="muted" style="font-size:13px">Опорная точка SAD: глубина {{ s.extra.form.zref or '10' }} г/см²{% if s.extra.form.exp_source %}, источник ожидаемой дозы: {{ s.extra.form.exp_source }}{% endif %}.</p>
+  {% else %}<p class="big">{% filter sym %}Dw(zmax) ={% endfilter %} {{ '%.6f'|format(res.dw_zmax) }} Гр/MU · {{ '%+.2f'|format(res.deviation_pct) }} %</p>
+  {% endif %}
+  <p class="muted" style="font-size:12px">Версия формул {{ res.formula_version }}, таблицы {{ res.tables_version }}</p>
+  {% else %}<p class="muted">Результат не рассчитан.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Исходные данные</h2>
+  <table>
+    <tr><td>Камера</td><td>{{ s.chamber }} (SN {{ s.serial_no }}{% filter sym %}), ND,w ={% endfilter %} {{ s.nd_w }}, калибровка {{ s.calibrated_on.strftime('%d.%m.%Y') }}</td></tr>
+    <tr><td>{% filter sym %}MU / P / T{% endfilter %}</td><td>{{ '%g'|format(s.mu) }} · {{ '%g'|format(s.pressure_kpa) }} кПа · {{ '%g'|format(s.temp_c) }} °C</td></tr>
+    <tr><td>{% filter sym %}V1 / V2{% endfilter %}</td><td>{{ '%g'|format(s.v1) }} В / {{ '%g'|format(s.v2) }} В</td></tr>
+    <tr><td><i>M</i><sub>1</sub></td><td>{{ s.m1_readings|join(' · ') }}</td></tr>
+    <tr><td><i>M</i><sub>2</sub></td><td>{{ s.m2_readings|join(' · ') }}</td></tr>
+    {% if s.m_plus_readings %}<tr><td>{% filter sym %}M+ / M−{% endfilter %}</td><td>{{ s.m_plus_readings|join(' · ') }} / {{ s.m_minus_readings|join(' · ') }}</td></tr>{% endif %}
+    <tr><td>{{ ('TPR20,10' if s.modality == 'photon' else 'R50 измеренное')|sym }}</td><td>{{ '%.4f'|format(s.beam_quality) }}</td></tr>
+    {% if s.note %}<tr><td>Примечание</td><td>{{ s.note }}</td></tr>{% endif %}
+  </table>
+</div>
+
+<div class="row">
+  {% if can_edit %}
+  <a class="btn" href="/measurements/{{ s.id }}/edit">Править</a>
+  <form class="inline" method="post" action="/measurements/{{ s.id }}/submit"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Отправить на проверку</button></form>
+  {% endif %}
+  {% if can_decide %}
+  <form class="row" method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="comment" placeholder="Комментарий (обязателен при возврате)" style="width:320px">
+    <button class="primary" formaction="/measurements/{{ s.id }}/approve">Утвердить</button>
+    <button formaction="/measurements/{{ s.id }}/return">Вернуть</button></form>
+  {% elif s.status == 'submitted' and can_review and mine %}<span class="muted">Свою запись утверждает другой проверяющий (правило двух лиц).</span>{% endif %}
+  {% if can_delete %}
+  <form class="inline" method="post" action="/measurements/{{ s.id }}/delete" onsubmit="return confirm('Удалить запись № {{ s.protocol_no }}? Номер протокола не будет использован повторно, действие записывается в журнал.')"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Удалить</button></form>
+  {% endif %}
+  {% if can_supersede %}
+  <form class="row" method="post" action="/measurements/{{ s.id }}/supersede"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="reason" placeholder="Причина замены" style="width:260px"><button>Заменить (создать исправленную копию)</button></form>
+  {% endif %}
+  {% if can_void %}
+  <form class="row" method="post" action="/measurements/{{ s.id }}/void" onsubmit="return confirm('Аннулировать утверждённую запись № {{ s.protocol_no }}? Она исчезнет из трендов и бюджета неопределённости, но останется в базе.')"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="reason" placeholder="Причина аннулирования" style="width:260px"><button>Аннулировать</button></form>
+  {% endif %}
+</div>
+{% endblock %}

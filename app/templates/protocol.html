@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>{{ v.doc_name }}</title>
+<style>
+@page{
+  size:A4 portrait;margin:12mm 11mm 14mm 11mm;
+  @bottom-center{content:"стр. " counter(page) " из " counter(pages) "   ·   {{ v.doc_name }}";font:7.5pt "Liberation Sans",Arial,sans-serif;color:#444}
+}
+*{box-sizing:border-box}
+body{font:8.6pt/1.25 "Liberation Sans",Arial,"DejaVu Sans",sans-serif;color:#000;background:#fff;margin:0}
+.sheet{width:188mm;margin:0 auto}
+h1{font-size:11pt;margin:0;text-align:center}
+.sub{text-align:center;font-weight:700;font-size:10pt;margin:0 0 3mm}
+h2{font-size:9.6pt;margin:4mm 0 1.2mm;font-weight:700}
+.r{display:flex;flex-wrap:wrap;align-items:center;gap:1.6mm;margin:0.9mm 0 0.9mm 6mm;min-height:4.6mm}
+.r.i2{margin-left:12mm}
+.lb{white-space:nowrap}
+.sp{flex:1}
+.c{display:inline-block;min-width:16mm;padding:0.4mm 1.6mm;text-align:right;font-weight:700;border:0.4pt solid #bbb}
+.c.w{min-width:30mm;text-align:left}.c.w.pl{min-width:16mm}
+.c.ww{min-width:70mm;text-align:left}
+.y{background:#ffff00}
+.cy{background:#ccffff}
+.gr{background:#00c26e}
+.u{font-size:7.6pt;white-space:nowrap}
+.ck{white-space:nowrap}
+.ck b{font-family:"DejaVu Sans",sans-serif;font-weight:400;font-size:9pt}
+i{font-style:italic}
+sub,sup{font-size:70%;line-height:0}
+.frac{display:inline-block;vertical-align:middle;text-align:center;margin:0 1mm}
+.frac .n{display:block;border-bottom:0.7pt solid #000;padding:0 1mm}
+.frac .d{display:block;padding:0 1mm}
+.fm{font-family:"Liberation Serif","Times New Roman",serif;font-size:10pt}
+.note{background:#ffff00;margin:4mm 0 0;padding:2mm 3mm;display:flex;gap:10mm;break-inside:avoid}
+.note .col{flex:1}
+.note .kv{display:flex;justify-content:space-between;margin:0.6mm 0}
+.rule{border-top:1.6pt solid #000;margin:4mm 0 0}
+.fn{font-size:7.4pt;margin:0.6mm 0 0 6mm}
+.mark{border:1.6pt solid #b00020;color:#b00020;text-align:center;font-weight:700;padding:1.5mm;margin:0 0 3mm}
+.sign{display:flex;gap:10mm;margin-top:6mm;break-inside:avoid}
+.sign div{flex:1;border-top:0.7pt solid #000;padding-top:1mm}
+.screen{max-width:190mm;margin:10px auto;text-align:center;font-family:system-ui,sans-serif}
+.screen a,.screen button{font:inherit;margin:0 6px;padding:5px 14px;border:1px solid #888;border-radius:6px;background:#f4f4f4;color:#000;text-decoration:none;cursor:pointer}
+@media print{.screen{display:none}}
+@media screen{.sheet{padding:6mm;background:#fff;box-shadow:0 0 6px #aaa;margin:10px auto}body{background:#e9ecf1}}
+.app{break-before:page;page-break-before:always}
+.ut{width:100%;border-collapse:collapse;margin:1.2mm 0 1.6mm;table-layout:fixed;break-inside:avoid}
+.ut th{background:#eee;border:0.4pt solid #888;padding:0.8mm 1.6mm;font-weight:700;text-align:left;font-size:8pt}
+.ut td{border:0.4pt solid #aaa;padding:0.7mm 1.6mm;vertical-align:top}
+.ut td.n{text-align:right;white-space:nowrap;font-weight:700}
+.ut td.t{text-align:center;width:12mm}
+.ut tr.tot td{font-weight:700}
+.ut .small{font-size:7.4pt;color:#333}
+.ut-sub{font-weight:700;margin:3mm 0 0.8mm;break-after:avoid}
+.ut-p{font-size:8pt;margin:1mm 0;line-height:1.3}
+.ut-note{font-size:7.6pt;margin:0.6mm 0 0 4mm}
+h2,.r{break-inside:avoid}
+h2{break-after:avoid}
+</style>
+</head>
+<body>
+{% macro box(on) %}<b>{{ '☑' if on else '☐' }}</b>{% endmacro %}
+{% macro cell(val, kind='y', cls='') %}<span class="c {{ kind }} {{ cls }}">{{ val }}</span>{% endmacro %}
+{% if screen %}<div class="screen"><button onclick="window.print()">Печать</button><a href="/measurements/{{ s.id }}/pdf?unc={{ unc_mode }}">Скачать PDF</a><a href="/measurements/{{ s.id }}">К записи</a><br><span style="font-size:12px">Приложение «Оценка неопределённости»:
+  {% for mode, label in (('short', 'кратко (1 стр.)'), ('full', 'полностью'), ('none', 'без приложения')) %}<a href="?unc={{ mode }}" style="{{ 'font-weight:700;border-color:#2a5db0' if unc_mode == mode }}">{{ label }}</a>{% endfor %}</span>
+</div>{% endif %}
+<div class="sheet">
+{% if s.status == 'voided' %}<div class="mark">АННУЛИРОВАНО {{ s.voided_at.strftime('%d.%m.%Y') }}: {{ s.void_reason }}. Документ недействителен.</div>
+{% elif s.status != 'approved' %}<div class="mark">НЕ УТВЕРЖДЕНО: статус «{{ status_labels[s.status] }}». Документ предварительный.</div>{% endif %}
+<h1>{{ v.title }}</h1>
+<div class="sub">{{ v.subtitle }}</div>
+<div class="r" style="margin-left:0"><span class="lb">Пользователь</span>{{ cell(s.creator, 'y', 'w') }}<span class="sp"></span><span class="lb">Дата:</span>{{ cell(s.measured_on.strftime('%d.%m.%Y'), 'y') }}<span class="lb">протокол №</span>{{ cell(s.protocol_no, 'y') }}</div>
+
+<h2>1. Радиотерапевтическое оборудование и референсные условия измерения <i>D</i><sub>w,<i>Q</i></sub></h2>
+<div class="r"><span class="lb">Линейный ускоритель:</span>{{ cell(v.linac ~ ('; ' ~ v.linac_model if v.linac_model != '—' else '') ~ '; ' ~ v.energy ~ ' ' ~ v.energy_unit, 'y', 'ww') }}
+  <span class="sp"></span><span class="lb">Город, страна:</span>{{ cell(v.city, 'y', 'w') }}</div>
+<div class="r"><span class="lb">Номинальная мощность дозы:</span>{{ cell(v.dose_rate) }}<span class="u">MU мин<sup>−1</sup></span>
+  <span class="sp"></span><span class="lb">{{ 'Номин. уск. потенциал:' if v.photon else 'Номинальная энергия:' }}</span>{{ cell(v.energy) }}<span class="u">{{ v.energy_unit }}</span></div>
+<div class="r"><span class="lb">Тип референсного фантома:</span>{{ cell(v.phantom, 'y', 'w') }}
+  <span class="sp"></span>{% if v.photon %}<span class="lb">СВФ (WFF) или БВФ (FFF):</span>{{ cell(v.filter, 'y', 'w') }}{% else %}<span class="lb">Референсный размер аппликатора:</span>{{ cell(v.field) }}<span class="u">см × см</span>{% endif %}</div>
+{% if v.photon %}
+<div class="r"><span class="lb">Референсный размер поля:</span>{{ cell(v.field) }}<span class="u">см × см</span>
+  <span class="sp"></span><span class="lb">Качество пучка, <i>Q</i> (<i>TPR</i><sub>20,10</sub>):</span>{{ cell(v.tpr, 'cy') }}{% if v.q_source %}<span class="u">({{ v.q_source }})</span>{% endif %}</div>
+<div class="r"><span class="lb">Геометрия:</span><span class="ck">{{ box(v.ssd) }} SSD</span><span class="ck">{{ box(v.sad) }} SAD</span>
+  <span class="lb" style="margin-left:6mm"><i>PDD</i>(10) / <i>PDD</i>(20):</span>{{ cell(v.pdd10) }}{{ cell(v.pdd20) }}</div>
+<div class="r"><span class="lb">Референсная глубина <i>z</i><sub>ref</sub>:</span>{{ cell(v.zref) }}<span class="u">г см<sup>−2</sup></span>
+  <span class="sp"></span><span class="lb">Референсное расстояние (SSD):</span>{{ cell(v.ref_dist) }}<span class="u">см</span></div>
+{% else %}
+<div class="r"><span class="lb">Измеренное <i>R</i><sub>50</sub>:</span>{{ cell(v.r50_measured) }}<span class="u">г см<sup>−2</sup></span>
+  <span class="sp"></span><span class="lb">Референсное расстояние (SSD):</span>{{ cell(v.ref_dist) }}<span class="u">см</span></div>
+<div class="r"><span class="lb">Качество пучка, <i>Q</i> (<i>R</i><sub>50,w</sub>):</span>{{ cell(v.r50w, 'cy') }}<span class="u">г см<sup>−2</sup></span>
+  <span class="sp"></span><span class="lb">Референсная глубина <i>z</i><sub>ref,w</sub> = 0,6·<i>R</i><sub>50</sub> − 0,1:</span>{{ cell(v.zref, 'cy') }}<span class="u">г см<sup>−2</sup></span></div>
+{% endif %}
+
+<h2>2. Ионизационная камера (ИК) и электрометр</h2>
+<div class="r"><span class="lb">Модель ИК</span>{{ cell(v.chamber, 'y', 'ww') }}<span class="sp"></span><span class="lb">Серийный №:</span>{{ cell(v.serial, 'y', 'w') }}</div>
+<div class="r"><span class="lb">{{ 'Стенка ИК' if v.photon else 'Стенка / окно ИК' }}</span><span class="lb" style="margin-left:6mm">материал:</span>{{ cell(v.wall_material, 'y', 'w') }}<span class="sp"></span><span class="lb">толщина:</span>{{ cell(v.wall_thickness) }}<span class="u">г см<sup>−2</sup></span></div>
+<div class="r"><span class="lb">Водонепр. наконечник</span><span class="lb" style="margin-left:6mm">материал:</span>{{ cell('-', 'y', 'w') }}<span class="sp"></span><span class="lb">толщина:</span>{{ cell('-') }}<span class="u">г см<sup>−2</sup></span></div>
+<div class="r"><span class="lb">Окно фантома</span><span class="lb" style="margin-left:15mm">материал:</span>{{ cell('-', 'y', 'w') }}<span class="sp"></span><span class="lb">толщина:</span>{{ cell('-') }}<span class="u">г см<sup>−2</sup></span></div>
+<div class="r" style="margin-top:2.4mm"><span class="lb"><b>Калибр. фактор поглощённой дозы в воде</b><sup>a</sup></span><span class="fm"><i>N</i><sub><i>D</i>,w,<i>Q</i><sub>0</sub></sub> =</span>{{ cell(v.nd_w, 'gr') }}<span class="ck">{{ box(true) }} Гр/нКл</span></div>
+<div class="r"><span class="lb">Качество при калибр. <i>Q</i><sub>0</sub>:</span><span class="ck">{{ box(v.q0_co60) }} {% filter sym %}Co-60{% endfilter %}</span><span class="ck">{{ box(not v.q0_co60) }} {{ 'фотонный' if v.photon else 'электронный пучок' }}</span>
+  <span class="sp"></span><span class="lb">Калибр. глубина:</span>{{ cell(v.cal_depth) }}<span class="u">г см<sup>−2</sup></span></div>
+{% if not v.photon %}<div class="r"><span class="lb">Если <i>Q</i><sub>0</sub> — электронный пучок, укажите <i>R</i><sub>50,w</sub>:</span>{{ cell(v.r50_q0) }}<span class="u">г см<sup>−2</sup></span></div>
+{% else %}<div class="r"><span class="lb">Если <i>Q</i><sub>0</sub> пучок фотонов, то <i>TPR</i><sub>20,10</sub>:</span>{{ cell(v.q0_tpr) }}</div>{% endif %}
+<div class="r" style="margin-top:1.6mm"><span class="lb">Референсные условия калибровки:</span>
+  <span class="lb" style="margin-left:6mm"><i>P</i><sub>0</sub>:</span>{{ cell(v.p0) }}<span class="u">кПа</span>
+  <span class="lb"><i>T</i><sub>0</sub>:</span>{{ cell(v.t0) }}<span class="u">°C</span><span class="lb">Отн. влажность:</span>{{ cell(v.cal_rh) }}<span class="u">%</span></div>
+<div class="r"><span class="lb">Напряжение при калибр. <i>V</i><sub>1</sub>:</span>{{ cell(v.cal_v1) }}<span class="u">V</span>
+  <span class="sp"></span><span class="lb">Полярность при калибровке:</span><span class="ck">{{ box(v.cal_pol_plus) }} +</span><span class="ck">{{ box(v.cal_pol_minus) }} −</span><span class="ck">{{ box(v.cal_pol_corrected) }} с поправкой на полярность</span></div>
+<div class="r"><span class="sp"></span><span class="lb">Полярность у пользователя:</span><span class="ck">{{ box(v.user_pol_plus) }} +</span><span class="ck">{{ box(v.user_pol_minus) }} −</span></div>
+<div class="r"><span class="lb">Калибр. лаборатория:</span>{{ cell(v.lab, 'y', 'w') }}<span class="sp"></span><span class="lb">Дата калибр.:</span>{{ cell(v.cal_date) }}</div>
+<div class="r"><span class="lb">Модель электрометра:</span>{{ cell(v.el_model, 'y', 'w') }}<span class="sp"></span><span class="lb">SN электрометра:</span>{{ cell(v.el_sn) }}</div>
+<div class="r"><span class="lb">Калибр. отдельно от камеры:</span><span class="ck">{{ box(v.kelec_sep) }} да</span><span class="ck">{{ box(not v.kelec_sep) }} нет</span>
+  <span class="sp"></span><span class="lb">Установленный диапазон:</span>{{ cell(v.el_range) }}</div>
+{% if v.kelec_sep %}<div class="r i2"><span class="lb">если да, то калибр. лаборатория:</span>{{ cell(v.kelec_lab, 'y', 'w') }}<span class="sp"></span><span class="lb">Дата:</span>{{ cell(v.kelec_date) }}</div>{% endif %}
+
+{% if not v.photon %}
+<h2>3. Фантом</h2>
+<div class="r"><span class="lb">Водный фантом</span><span class="lb" style="margin-left:6mm">материал окна:</span>{{ cell(v.win_m) }}<span class="lb">толщина:</span>{{ cell(v.win_t) }}<span class="u">г см<sup>−2</sup></span></div>
+<div class="r"><span class="lb">Пластиковый фантом:</span>{{ cell(v.plastic, 'y', 'w pl') }}<span class="lb">коэф. масштаб. глубины <i>c</i><sub>pl</sub>:</span>{{ cell(v.c_pl) }}<span class="sp"></span><span class="lb">коэф. масштаб. флюенса <i>h</i><sub>pl</sub>:</span>{{ cell(v.h_pl) }}</div>
+{% endif %}
+
+<h2>{{ '3' if v.photon else '4' }}. Показания дозиметра<sup>b</sup> и поправки на влияющие величины:</h2>
+<div class="r"><span class="lb">Нескорр. показание дозиметра при <i>V</i><sub>1</sub> и полярности пользователя:</span><span class="sp"></span>{{ cell(v.rdg, 'gr') }}<span class="ck">{{ box(true) }} нКл</span></div>
+<div class="r"><span class="lb">Используемое значение MU:</span><span class="sp"></span>{{ cell(v.mu) }}<span class="u">MU</span></div>
+<div class="r"><span class="lb">Соотношение показаний дозиметра и MU:</span><span class="sp"></span><span class="fm"><i>M</i><sub>1</sub> =</span>{{ cell(v.m_per_mu) }}<span class="ck">{{ box(true) }} нКл/MU</span></div>
+
+<div class="r" style="margin-left:2mm;margin-top:2mm"><span class="lb">(i)</span><span class="lb" style="margin-left:6mm"><i>P</i>:</span>{{ cell(v.pressure, 'gr') }}<span class="u">кПа</span>
+  <span class="lb"><i>T</i>:</span>{{ cell(v.temp, 'gr') }}<span class="u">°C</span><span class="lb">Отн. влажность:</span>{{ cell(v.rh) }}<span class="u">%</span></div>
+<div class="r i2"><span class="fm"><i>k</i><sub>TP</sub> = <span class="frac"><span class="n">(273,2 + <i>T</i>) <i>P</i><sub>0</sub></span><span class="d">(273,2 + <i>T</i><sub>0</sub>) <i>P</i></span></span> =</span>{{ cell(v.k_tp, 'cy') }}</div>
+<div class="r" style="margin-left:2mm"><span class="lb">(ii)</span><span class="lb" style="margin-left:6mm">Коэф-т калибровки электрометра <i>k</i><sub>elec</sub>:</span>{{ cell(v.k_elec) }}<span class="ck">{{ box(true) }} безразмерн.</span></div>
+<div class="r" style="margin-left:2mm"><span class="lb">(iii)</span><span class="lb" style="margin-left:6mm">Корр. полярности<sup>d</sup></span><span class="lb">показание на +<i>V</i><sub>1</sub>: <i>M</i><sub>+</sub> =</span>{{ cell(v.m_plus) }}<span class="lb">на −<i>V</i><sub>1</sub>: <i>M</i><sub>−</sub> =</span>{{ cell(v.m_minus) }}</div>
+<div class="r i2"><span class="fm"><i>k</i><sub>pol</sub> = <span class="frac"><span class="n">|<i>M</i><sub>+</sub>| + |<i>M</i><sub>−</sub>|</span><span class="d">2<i>M</i></span></span> =</span>{{ cell(v.k_pol, 'cy') }}</div>
+
+<div class="r" style="margin-left:2mm"><span class="lb">(iv)</span><span class="lb" style="margin-left:6mm">Коррекция рекомбинации (метод двух напряжений)</span></div>
+<div class="r i2"><span class="lb">Напр. поляризации:</span><span class="lb"><i>V</i><sub>1</sub> (нормальное) =</span>{{ cell(v.v1) }}<span class="u">V</span><span class="sp"></span><span class="lb"><i>V</i><sub>2</sub> (уменьш.) =</span>{{ cell(v.v2) }}<span class="u">V</span></div>
+<div class="r i2"><span class="lb">Показания при каждом <i>V</i>:</span><span class="sp"></span><span class="lb"><i>M</i><sub>1</sub> =</span>{{ cell(v.m1, 'gr') }}<span class="lb" style="margin-left:6mm"><i>M</i><sub>2</sub> =</span>{{ cell(v.m2, 'gr') }}</div>
+<div class="r i2"><span class="lb">Тип пучка:</span><span class="ck">{{ box(v.pulsed) }} импульсный</span><span class="ck">{{ box(v.scanned) }} имп.-сканир.</span></div>
+<div class="r i2"><span class="lb">Соотношение напряжений <i>V</i><sub>1</sub> / <i>V</i><sub>2</sub> =</span>{{ cell(v.v_ratio, 'cy') }}<span class="sp"></span><span class="lb">Отношение показаний <i>M</i><sub>1</sub> / <i>M</i><sub>2</sub> =</span>{{ cell(v.m_ratio, 'cy') }}</div>
+<div class="r i2"><span class="sp"></span><span class="lb"><i>a</i><sub>0</sub> = {{ v.a0 }}</span><span class="lb" style="margin-left:6mm"><i>a</i><sub>1</sub> = {{ v.a1 }}</span><span class="lb" style="margin-left:6mm"><i>a</i><sub>2</sub> = {{ v.a2 }}</span></div>
+<div class="r i2"><span class="fm"><i>k</i><sub>s</sub> = <i>a</i><sub>0</sub> + <i>a</i><sub>1</sub>(<span class="frac"><span class="n"><i>M</i><sub>1</sub></span><span class="d"><i>M</i><sub>2</sub></span></span>) + <i>a</i><sub>2</sub>(<span class="frac"><span class="n"><i>M</i><sub>1</sub></span><span class="d"><i>M</i><sub>2</sub></span></span>)<sup>2</sup> =</span>{{ cell(v.k_s, 'cy') }}</div>
+{% if v.photon %}
+<div class="r" style="margin-left:2mm;margin-top:2mm"><span class="lb">(v) Поправка на усреднение по объёму <i>k</i><sub>vol</sub> (Табл.11/ф.22 Rev.1):</span><span class="sp"></span><span class="lb">Фильтр:</span>{{ cell(v.filter, 'cy', 'w') }}</div>
+<div class="r i2"><span class="lb">SCD = SSD + <i>z</i><sub>ref</sub>, см:</span>{{ cell(v.rid, 'cy') }}<span class="sp"></span><span class="lb"><i>L</i>, см:</span>{{ cell(v.cavity, 'cy') }}</div>
+<div class="r i2"><span class="lb"><i>k</i><sub>vol</sub> = 1 + (0,0062·<i>TPR</i><sub>20,10</sub> − 0,0036)·(100/SCD)²·<i>L</i>²:</span><span class="sp"></span><span class="lb"><i>k</i><sub>vol</sub> =</span>{{ cell(v.k_vol, 'cy') }}</div>
+{% endif %}
+<div class="r" style="margin-top:2.4mm"><span class="lb">Скорректированные показания дозиметра при напряжении <i>V</i><sub>1</sub>:</span></div>
+<div class="r i2"><span class="fm"><i>M</i><sub><i>Q</i></sub> = <i>M</i><sub>1</sub> <i>k</i><sub>TP</sub> {% if not v.photon %}<i>h</i><sub>pl</sub> {% endif %}<i>k</i><sub>elec</sub> <i>k</i><sub>pol</sub> <i>k</i><sub>s</sub>{% if v.photon %} <i>k</i><sub>vol</sub>{% endif %} =</span>{{ cell(v.m_q, 'cy') }}<span class="ck">{{ box(true) }} нКл / MU</span></div>
+
+<h2>{{ '4' if v.photon else '5' }}. Мощность поглощённой дозы для воды на референсной глубине, <i>z</i><sub>ref</sub></h2>
+<div class="r"><span class="lb">Кор-ка кач. пучка на кач. пучка пользователя <i>Q</i>:</span><span class="sp"></span><span class="fm"><i>k</i><sub><i>Q</i>,<i>Q</i><sub>0</sub></sub> =</span>{{ cell(v.k_q, 'cy') }}</div>
+<div class="r"><span class="ck">{{ box(v.kq_table16 or v.kq_table20 or v.kq_table21) }} {{ 'Табл.16 Rev.1' if v.photon else ('Табл.20 Rev.1' if v.kq_table20 else 'Табл.21 Rev.1') }}</span><span class="ck">{{ box(false) }} Другое, укажите:</span></div>
+<div class="r"><span class="fm"><i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>ref</sub>) = <i>M</i><sub><i>Q</i></sub> <i>N</i><sub><i>D</i>,w,<i>Q</i><sub>0</sub></sub> <i>k</i><sub><i>Q</i>,<i>Q</i><sub>0</sub></sub> =</span>{{ cell(v.dw_zref, 'cy') }}<span class="u">Гр / MU</span></div>
+
+<h2>{{ '5' if v.photon else '6' }}. Мощность поглощённой дозы в воде на глубине максимума дозы, <i>z</i><sub>max</sub></h2>
+<div class="r"><span class="lb">Глубина максимальной дозы:</span><span class="sp"></span><span class="fm"><i>z</i><sub>max</sub> =</span>{{ cell(v.zmax) }}<span class="u">г см<sup>−2</sup></span></div>
+{% if v.photon %}<div class="r"><span class="lb">(i) при геометрии SSD</span></div>{% endif %}
+<div class="r i2"><span class="lb"><i>PDD</i> на <i>z</i><sub>ref</sub> для {{ 'размера поля' if v.photon else 'аппликатора' }} <i>a</i> = {{ v.field }} см × см</span></div>
+<div class="r i2"><span class="sp"></span><span class="fm"><i>PDD</i>(<i>z</i><sub>ref</sub> = {{ v.zref }} г см<sup>−2</sup>) =</span>{{ cell(v.pdd_zref) }}<span class="u">%</span></div>
+<div class="r i2"><span class="fm"><i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>max</sub>) = 100 <i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>ref</sub>) / <i>PDD</i>(<i>z</i><sub>ref</sub>) =</span>{{ cell(v.dw_zmax_ssd, 'cy') }}<span class="u">Гр / MU</span></div>
+{% if v.photon %}
+<div class="r"><span class="lb">(ii) при геометрии SAD</span></div>
+<div class="r i2"><span class="fm"><i>TMR</i>(<i>z</i><sub>ref</sub> = {{ v.zref }} г см<sup>−2</sup>) =</span>{{ cell(v.tmr_zref) }}</div>
+<div class="r i2"><span class="fm"><i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>max</sub>) = <i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>ref</sub>) / <i>TMR</i>(<i>z</i><sub>ref</sub>) =</span>{{ cell(v.dw_zmax_sad, 'cy') }}<span class="u">Гр / MU</span></div>
+{% endif %}
+
+<div class="rule"></div>
+<div class="note">
+  <div class="col">
+    <div style="font-weight:700">Примечание: 1cGy=1MU check</div>
+    <div class="kv"><span>Знач до калиб</span><b>{{ v.check_before }} MU</b></div>
+    <div class="kv"><span>Идеал знач</span><b>{{ v.check_ideal }} MU</b></div>
+    <div class="kv"><span>Поправка (%)</span><b>{{ v.check_pct }} %</b></div>
+    <div class="kv"><span>Standard →</span><b>{{ v.check_standard }} MU on {{ v.ref_mu }}MU</b></div>
+  </div>
+  <div class="col"><div>{{ v.kq_note|sym }}</div><div>{{ v.tables_note }}</div>
+    {% if s.note %}<div style="margin-top:2mm"><b>Примечание исполнителя:</b> {{ s.note }}</div>{% endif %}</div>
+</div>
+
+<div class="sign">
+  <div>Выполнил: {{ s.creator }}<br><span class="u">подпись, дата</span></div>
+  <div>Проверил: {{ s.approver or '________________' }}{% if s.approved_at %}, {{ s.approved_at.strftime('%d.%m.%Y') }}{% endif %}<br><span class="u">подпись, дата</span></div>
+</div>
+
+<div style="margin-top:4mm">
+<div class="fn"><sup>a</sup> Имейте ввиду при <i>Q</i><sub>0</sub> — <sup>60</sup>Co, <i>N</i><sub><i>D</i>,w,<i>Q</i><sub>0</sub></sub> обозначается <i>N</i><sub><i>D</i>,w</sub></div>
+<div class="fn"><sup>b</sup> Все показания следует проверить на наличие утечек и при необходимости скорректировать</div>
+<div class="fn"><sup>d</sup> <i>M</i> в знаменателе <i>k</i><sub>pol</sub> обозначает считывание при пользовательской полярности. Предпочтительно, чтобы каждое показание среднего отношения <i>M</i> (<i>M</i><sub>+</sub> или <i>M</i><sub>−</sub>) было скорректировано к показаниям внешнего монитора, <i>M</i><sub>em</sub>.</div>
+<div class="fn"><sup>e</sup> Строго говоря, показания должны быть скорректированы с учётом эффекта полярности (среднее значение для обеих полярностей). Предпочтительно, чтобы каждое чтение в уравнение представляло собой среднее значение отношения <i>M</i><sub>1</sub> или <i>M</i><sub>2</sub> к показаниям внешнего монитора, <i>M</i><sub>em</sub>.</div>
+<div class="fn"><sup>f</sup> Предполагается, что калибровочная лаборатория выполнила коррекцию рекомбинации. В противном случае фактор <i>k</i>′<sub>s</sub> = <i>k</i><sub>s</sub> / <i>k</i><sub>s,<i>Q</i><sub>0</sub></sub> следует использовать вместо <i>k</i><sub>s</sub>. Когда <i>Q</i><sub>0</sub> есть <sup>60</sup>Co, <i>k</i><sub>s,<i>Q</i><sub>0</sub></sub> (от калибровочной лаборатории) обычно будет близко к единице, и эффект от неиспользования этого уравнения в большинстве случаев будет незначительным.
+  <span class="fm">&nbsp; <i>k</i><sub>s</sub> − 1 = {{ v.ks_minus_1 }}; &nbsp;(<i>M</i><sub>1</sub>/<i>M</i><sub>2</sub> − 1)/(<i>V</i><sub>1</sub>/<i>V</i><sub>2</sub> − 1) = {{ v.ks_alt }}</span></div>
+<div class="fn"><sup>c</sup> Если электрометр не был откалиброван отдельно, установите <i>k</i><sub>elec</sub> = 1 (TRS-398 Rev.1, форма 6.9, прим. c).</div>
+<div class="fn">{% filter sym %}Примечание: SAD — расстояние источник–ось; SSD — расстояние источник–поверхность; БВФ — без выравнивающего фильтра; PDD — процентная глубинная доза; TMR — отношение ткань–максимум; MU (м.е.) — мониторная единица.{% endfilter %}</div>
+<div class="fn" style="margin-top:2mm;color:#444">Версия формул {{ v.formula_version }}, таблицы {{ v.tables_version }}. Расчёт выполнен программно по TRS-398 Rev.1 (МАГАТЭ); результат подлежит независимой проверке. Жёлтые поля — введённые значения, голубые — рассчитанные, зелёные — ключевые измеренные.</div>
+</div>
+{% if v.unc and unc_mode == 'full' %}{% set u = v.unc %}
+<div class="app">
+<div class="r" style="margin-left:0"><span class="lb">Пользователь</span>{{ cell(s.creator, 'y', 'w') }}<span class="sp"></span><span class="lb">Протокол №</span>{{ cell(s.protocol_no, 'y') }}<span class="lb">Дата:</span>{{ cell(s.measured_on.strftime('%d.%m.%Y'), 'y') }}</div>
+<h1 style="margin-top:3mm">Приложение. {{ u.title|sym }}</h1>
+<div class="sub" style="font-weight:400;font-size:8.4pt">{{ u.subtitle|sym }}</div>
+
+<div class="ut-sub">Текущая конфигурация (авто, по данным записи):</div>
+<table class="ut"><colgroup><col style="width:44mm"><col></colgroup>{% for k, val in u.config %}<tr><td style="width:44mm">{{ k|sym }}:</td><td><b>{{ val|sym }}</b></td></tr>{% endfor %}</table>
+
+<div class="ut-sub">{{ u.stage1_title|sym }} (Тип B)</div>
+<table class="ut"><colgroup><col><col style="width:25mm"><col style="width:30mm"><col style="width:40mm"></colgroup><tr><th>Физическая величина или процедура</th><th style="width:25mm">Тип (GUM), распределение</th><th style="width:30mm">Отн. станд. неопределённость, %</th><th style="width:50mm">Примечание</th></tr>
+{% for name, kind, val, note, dist, how in u.stage1 %}<tr><td>{{ name|sym }}{% if how %}<div class="small" style="color:#444">{{ how|sym }}</div>{% endif %}</td><td class="t">{{ kind }}<div class="small">{{ dist }}</div></td><td class="n" style="background:#ffff00">{{ val|sym }}</td><td class="small">{{ note|sym }}</td></tr>{% endfor %}
+<tr class="tot"><td>Суммарная неопределённость этапа 1, <i>u</i><sub>1</sub></td><td></td><td class="n" style="background:#ccffff">{{ u.u1 }}</td><td></td></tr></table>
+
+<div class="ut-sub">{{ u.stage2_title|sym }} (Тип B)</div>
+<table class="ut"><colgroup><col><col style="width:25mm"><col style="width:30mm"><col style="width:40mm"></colgroup><tr><th>Физическая величина или процедура</th><th style="width:25mm">Тип (GUM), распределение</th><th style="width:30mm">Отн. станд. неопределённость, %</th><th style="width:50mm">Примечание</th></tr>
+{% for name, kind, val, note, dist, how in u.stage2 %}<tr><td>{{ name|sym }}{% if how %}<div class="small" style="color:#444">{{ how|sym }}</div>{% endif %}</td><td class="t">{{ kind }}<div class="small">{{ dist }}</div></td><td class="n" style="background:#ffff00">{{ val|sym }}</td><td class="small">{{ note|sym }}</td></tr>{% endfor %}
+<tr class="tot"><td>Суммарная неопределённость этапа 2, <i>u</i><sub>2</sub></td><td></td><td class="n" style="background:#ccffff">{{ u.u2 }}</td><td></td></tr></table>
+
+<div class="ut-sub">Тип A. Экспериментальная неопределённость по данным журнала (GUM, п. 4.2)</div>
+<div class="ut-p">{{ u.type_a_text|sym }}</div>
+<table class="ut"><colgroup><col><col style="width:12mm"><col style="width:30mm"></colgroup><tr><td>Экспериментальное σ (Тип A), лист «Тренд» (σ = MR̄/1,128), по {{ u.n_points }} записям</td><td class="t">A</td><td class="n" style="background:#ccffff;width:30mm">{{ u.sigma_a }}</td></tr></table>
+
+<div class="ut-sub">Комбинированная и расширенная неопределённость (GUM, разд. 5–6)</div>
+<div class="ut-p">{{ u.combine|sym }}</div>
+<table class="ut"><colgroup><col><col style="width:30mm"></colgroup>
+<tr class="tot"><td>Суммарная стандартная неопределённость <i>u</i><sub>c</sub> = √(<i>u</i><sub>1</sub>² + <i>u</i><sub>2</sub>² + <i>u</i><sub>A</sub>²)</td><td class="n" style="background:#ccffff;width:30mm">{{ u.uc }} %</td></tr>
+<tr class="tot"><td>Расширенная неопределённость <i>U</i> = <i>k</i>·<i>u</i><sub>c</sub> (<i>k</i> = 2, ~95 % доверительная вероятность)</td><td class="n" style="background:#ccffff">{{ u.U }} %</td></tr></table>
+<div class="ut-sub">Справочно: по методике TRS-398 (без данных журнала, только Тип B)</div>
+<table class="ut"><colgroup><col><col style="width:30mm"></colgroup><tr><td>{{ u.reference_label|sym }}</td><td class="n" style="background:#ccffff;width:30mm">{{ u.reference }} %</td></tr>
+<tr><td colspan="2" class="small">{{ u.reference_note|sym }}</td></tr></table>
+{% if u.context %}<div class="ut-p">{{ u.context|sym }}</div>{% endif %}
+
+<div class="ut-sub">Определения (GUM)</div>
+{% for d in u.definitions %}<div class="ut-p">{{ d|sym }}</div>{% endfor %}
+<div class="ut-sub">{{ u.notes_title|sym }}</div>
+{% for n in u.notes %}<div class="ut-note">{{ n|sym }}</div>{% endfor %}
+<div class="ut-p" style="margin-top:1.6mm">{{ u.source|sym }}</div>
+
+{% if u.decision %}{% set d = u.decision %}
+<h2 style="margin-top:5mm">Решение о перекалибровке: допуск, неопределённость и тренд</h2>
+<div class="ut-p">{{ d.intro|sym }}</div>
+<table class="ut"><colgroup><col style="width:62mm"><col style="width:26mm"><col></colgroup><tr><th colspan="3">Параметры оценки (значения по умолчанию)</th></tr>
+{% for k, val, c in d.params %}<tr><td style="width:62mm">{{ k|sym }}</td><td class="n" style="background:#ffff00;width:26mm">{{ val|sym }}</td><td class="small">{{ c|sym }}</td></tr>{% endfor %}</table>
+<table class="ut"><colgroup><col style="width:62mm"><col style="width:26mm"><col></colgroup><tr><th colspan="3">Текущее состояние</th></tr>
+{% for k, val, c in d.state %}<tr><td style="width:62mm">{{ k|sym }}</td><td class="n" style="background:#ccffff;width:26mm;white-space:normal">{{ val|sym }}</td><td class="small">{{ c|sym }}</td></tr>{% endfor %}</table>
+<table class="ut"><colgroup><col style="width:62mm"><col style="width:26mm"><col></colgroup><tr><th colspan="3">Прогноз по тренду (последние N записей)</th></tr>
+{% for k, val, c in d.forecast %}<tr><td style="width:62mm">{{ k|sym }}</td><td class="n" style="background:#ccffff;width:26mm;white-space:normal">{{ val|sym }}</td><td class="small">{{ c|sym }}</td></tr>{% endfor %}</table>
+<div class="ut-p">{{ d.limits|sym }}</div>
+{% endif %}
+</div>
+{% endif %}
+{% if v.unc and unc_mode == 'short' %}{% set u = v.unc %}
+<div class="app short">
+<div class="r" style="margin-left:0"><span class="lb">Пользователь</span>{{ cell(s.creator, 'y', 'w') }}<span class="sp"></span><span class="lb">Протокол №</span>{{ cell(s.protocol_no, 'y') }}<span class="lb">Дата:</span>{{ cell(s.measured_on.strftime('%d.%m.%Y'), 'y') }}</div>
+<h1 style="margin-top:3mm">Приложение. Оценка неопределённости (кратко)</h1>
+<div class="ut-sub">Конфигурация измерения</div>
+<table class="ut"><colgroup><col style="width:44mm"><col></colgroup>{% for k, val in u.config %}<tr><td style="width:44mm">{{ k|sym }}:</td><td><b>{{ val|sym }}</b></td></tr>{% endfor %}</table>
+<div class="ut-sub">Составляющие и итог</div>
+<table class="ut"><colgroup><col><col style="width:30mm"></colgroup>
+<tr><td>Этап 1: калибровка дозиметра (Тип B), <i>u</i><sub>1</sub></td><td class="n" style="background:#ccffff">{{ u.u1 }} %</td></tr>
+<tr><td>Этап 2: пучок пользователя (Тип B), <i>u</i><sub>2</sub></td><td class="n" style="background:#ccffff">{{ u.u2 }} %</td></tr>
+<tr><td>Экспериментальное σ по журналу (Тип A), по {{ u.n_points }} записям, <i>u</i><sub>A</sub></td><td class="n" style="background:#ccffff">{{ u.sigma_a }}{% if u.sigma_a != '—' %} %{% endif %}</td></tr>
+<tr class="tot"><td>Суммарная стандартная неопределённость <i>u</i><sub>c</sub> = √(<i>u</i><sub>1</sub>² + <i>u</i><sub>2</sub>² + <i>u</i><sub>A</sub>²)</td><td class="n" style="background:#ccffff">{{ u.uc }} %</td></tr>
+<tr class="tot"><td>Расширенная неопределённость <i>U</i> = <i>k</i>·<i>u</i><sub>c</sub> (<i>k</i> = 2, ~95 % доверительная вероятность)</td><td class="n" style="background:#ccffff">{{ u.U }} %</td></tr>
+<tr><td class="small">Справочно по TRS-398 (только Тип B)</td><td class="n">{{ u.reference }} %</td></tr></table>
+{% if u.decision %}{% set d = u.decision %}
+<div class="ut-sub">Состояние и рекомендация</div>
+<table class="ut"><colgroup><col><col style="width:46mm"></colgroup>
+{% for k, val, c in d.state %}{% if loop.index in (1, 3, 5) %}<tr><td>{{ k|sym }}</td><td class="n" style="white-space:normal">{{ val|sym }}</td></tr>{% endif %}{% endfor %}
+{% for k, val, c in d.forecast %}{% if k == 'Рекомендация' %}<tr><td>{{ k|sym }}</td><td class="n" style="white-space:normal">{{ val|sym }}</td></tr>{% endif %}{% endfor %}</table>
+{% endif %}
+<div class="ut-p" style="margin-top:3mm">Неопределённость стандартная (<i>k</i> = 1), составляющие Типа B по TRS-398 Rev.1, Тип A по журналу контрольных измерений этого пучка (GUM, ISO/IEC Guide 98-3:2008).
+Подробные таблицы этапов 1–2, определения, примечания и расчёт решения о перекалибровке: на экране печати выберите «Приложение: полностью».</div>
+</div>
+{% endif %}
+</div>
+</body>
+</html>

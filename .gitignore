@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+docs/sample_*.pdf
+docs/_preview/
+tests/data/*.json
+*.log
+backup*.sql
+backups/
+certs/
+i18n_todo.*
+i18n_chunk*.json
+
+# release packages (tools/make_bundle.py)
+dist/

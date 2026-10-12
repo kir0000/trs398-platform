@@ -1,0 +1,15 @@
+{% set back = '/equipment?tab=reference' %}
+{% set names = {'tpr': 'TPR20,10', 'pdd10': 'PDD(10), %', 'pdd20': 'PDD(20), %', 'r50': 'R50', 'mu': 'MU', 'm1': 'M, серия (раздел 3)', 'm1_v1': 'M1 при V1', 'm_plus': 'M+', 'm_minus': 'M−', 'm2': 'M2 при V2', 'v1': 'V1, В', 'v2': 'V2, В', 'pulsed_scanned': 'Тип пучка'} %}
+<div class="card"><h2 style="margin-top:0">Опорные значения пучков</h2>
+  <p class="muted" style="font-size:13px;margin:0 0 8px">Значения, сохранённые кнопкой «Сделать эти значения опорными» на листе измерения: качество пучка, MU, серия <i>M</i>, показания (iii) и (iv) для пары «пучок + камера».
+  Они подставляются в новые измерения. Заменить их можно сохранением новых значений с листа; удалить может администратор.</p>
+  {% if refs %}<table><tr><th>Пучок</th><th>Камера</th><th>Сохранено</th><th>Содержимое</th><th></th></tr>
+  {% for r in refs %}<tr>
+    <td><b>{{ r.label }}</b></td><td>{{ r.chamber }}, SN {{ r.serial_no }}</td>
+    <td>{{ r.set_at.strftime('%d.%m.%Y %H:%M') }}<div class="muted" style="font-size:12px">{{ r.who }}</div></td>
+    <td><details><summary style="cursor:pointer">MU {{ r.data.get('mu') or '—' }} · показаний: {{ r.data|length }}</summary>
+      <table style="margin-top:6px">{% for k in ref_fields %}{% if r.data.get(k) %}<tr><td class="muted">{{ names.get(k, k)|sym }}</td><td>{{ r.data.get(k) }}</td></tr>{% endif %}{% endfor %}</table></details></td>
+    <td>{% if not ro %}<form method="post" action="/equipment/reference/delete" class="inline" onsubmit="return confirm('Удалить опорные значения этого пучка и камеры?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="beam_id" value="{{ r.beam_id }}"><input type="hidden" name="chamber_unit_id" value="{{ r.chamber_unit_id }}"><button class="danger">Удалить</button></form>{% endif %}</td>
+  </tr>{% endfor %}</table>
+  {% else %}<p class="muted">Опорные значения пока не сохранены. Заполните лист измерения и нажмите «Сделать эти значения опорными».</p>{% endif %}
+</div>

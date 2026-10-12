@@ -1,0 +1,46 @@
+{% set back = '/equipment?tab=dosimeters' %}
+<div class="card"><h2 style="margin-top:0">Камеры и калибровки</h2>
+  <p class="muted" style="font-size:13px;margin:0 0 8px">Калибровка относится к экземпляру камеры (тип и серийный номер) и не зависит от аппарата: она действует для всех пучков. Калибровка, по которой уже есть измерения, не меняется; новый сертификат добавляется новой строкой.</p>
+  {% for u in unit_rows %}
+  <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px">
+    <div class="row" style="justify-content:space-between;gap:10px">
+      <div><b>{{ u.chamber }}</b>, SN {{ u.serial_no }}</div>
+      <div>{% if u.state.state == 'expired' %}<span class="badge bad">срок калибровки истёк {{ u.current.valid_until.strftime('%d.%m.%Y') }}</span>
+        {% elif u.state.state == 'soon' %}<span class="badge warn">истекает {{ u.current.valid_until.strftime('%d.%m.%Y') }}, осталось дней: {{ u.state.days }}</span>
+        {% elif u.state.state == 'ok' %}<span class="badge ok">действует до {{ u.current.valid_until.strftime('%d.%m.%Y') }}</span>{% endif %}</div>
+    </div>
+    <table style="margin-top:6px"><tr><th>Дата калибровки</th><th>{% filter sym %}ND,w{% endfilter %}</th><th>{% filter sym %}Q0 / V1 / полярность{% endfilter %}</th><th>{% filter sym %}kelec{% endfilter %}</th><th>Электрометр</th><th>Отдельно от камеры</th><th>Лаборатория</th><th>Действует до</th><th>Измерений</th><th></th></tr>
+    {% for c in u.cals %}<tr>
+      <td>{{ c.calibrated_on.strftime('%d.%m.%Y') }}</td>
+      <td>{{ c.nd_w }}{% if c.nd_warn %} <span class="err" style="font-weight:700;cursor:help" title="{{ c.nd_warn|sym_plain }}">⚠ проверьте</span>{% endif %}</td>
+      <td>{{ (c.q0 or '—')|sym }}{% if c.voltage_v is not none %} / {{ '%g'|format(c.voltage_v) }} В{% endif %}{% if c.polarity_cal or c.polarity_user %} / {{ c.polarity_cal or '—' }} · {{ c.polarity_user or '—' }}{% endif %}</td>
+      <td>{{ c.k_elec }}</td>
+      <td>{{ c.el_model or '—' }}{% if c.el_sn %}, SN {{ c.el_sn }}{% endif %}{% if c.el_range %}, {{ c.el_range }}{% endif %}</td>
+      <td>{{ '☑ да' if c.kelec_separate else '☐ нет' }}</td>
+      <td>{{ c.lab or '—' }}</td>
+      <td class="{{ 'err' if c.state.state == 'expired' }}">{{ c.valid_until.strftime('%d.%m.%Y') if c.valid_until else '—' }}</td>
+      <td>{{ c.used }}</td>
+      <td style="white-space:nowrap">{% if not ro %}<a class="btn" href="/equipment/calibration/{{ c.id }}/edit">{{ 'Править' if not c.used else 'Открыть' }}</a>
+        {% if not c.used %}<form method="post" action="/equipment/calibration/{{ c.id }}/delete" class="inline" onsubmit="return confirm('Удалить эту калибровку?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><button class="danger">Удалить</button></form>{% endif %}{% endif %}</td>
+    </tr>{% endfor %}</table>
+  </div>
+  {% else %}<p class="muted">Калибровок пока нет.</p>{% endfor %}
+
+  {% if not ro %}
+  <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Новая калибровка</summary>
+    <form method="post" action="/equipment/calibration" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}">
+      <div class="grid">
+        <div><label>Камера</label><select name="chamber_id" required>{% for ch in chambers %}<option value="{{ ch.id }}">{{ ch.name }}</option>{% endfor %}</select></div>
+        <div><label>Серийный номер камеры</label><input name="serial_no" required {{ fa('serial_no') }}></div>
+      </div>
+      {% set c = {} %}{% include "_cal_fields.html" %}
+      <p style="margin-top:12px"><button class="primary">Добавить калибровку</button></p></form>
+  </details>
+  {% endif %}
+</div>
+
+<div class="card"><h2 style="margin-top:0">Электрометры</h2>
+  {% if electrometers %}<table><tr><th>Модель</th><th>Серийный №</th><th>Калибровок с этим электрометром</th></tr>
+  {% for e in electrometers %}<tr><td>{{ e.model }}</td><td>{{ e.serial_no or '—' }}</td><td>{{ e.n_cals }}</td></tr>{% endfor %}</table>
+  {% else %}<p class="muted">Электрометры добавляются вместе с калибровкой.</p>{% endif %}
+</div>

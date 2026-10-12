@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Резервные копии{% endblock %}
+{% block content %}
+<h1>Резервные копии</h1>
+{% if requested %}<div class="card ok">Запрос отправлен: копия появится в списке через несколько секунд (обновите страницу).</div>{% endif %}
+<div class="card" style="border-color:var(--{{ 'bad' if backup.stale else 'ok' }})"><h2>Состояние</h2>
+  {% if backup.found %}<p>Последняя: <b>{{ backup.name }}</b>, {{ backup.when.strftime('%d.%m.%Y %H:%M') }}, {{ backup.size_kb }} КБ. Всего копий: {{ backup.count }}.</p>{% endif %}
+  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0 0 10px">{{ backup.message }}</p>
+  <form method="post" action="/admin/backups/now"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Сделать копию сейчас</button></form>
+  <p class="muted" style="font-size:13px">Автоматически: при запуске и каждый день в 02:00 UTC, хранится 30 дней. Файлы лежат в папке <code>backups</code> рядом с программой.
+  Сейчас в базе: измерений {{ counts.sessions }}, пользователей {{ counts.users }}.</p>
+</div>
+<div class="card"><h2>Последние файлы</h2>
+  <table class="sortable"><tr><th>Файл</th><th>Тип</th><th data-default="desc">Создан</th><th>КБ</th></tr>
+  {% for f in files %}<tr><td>{{ f.name }}</td><td>{{ f.kind }}</td><td>{{ f.when.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ f.size_kb }}</td></tr>
+  {% else %}<tr><td colspan="4" class="muted">Копий пока нет.</td></tr>{% endfor %}</table>
+</div>
+<div class="card"><h2>Как восстановить базу</h2>
+  <ol style="margin:0;padding-left:20px;line-height:1.7">
+    <li>На компьютере с программой откройте папку проекта и запустите <b>restore.bat</b> (Linux/macOS: <code>./restore.sh</code>).</li>
+    <li>Выберите номер копии (1 — самая свежая) и введите <b>YES</b>.</li>
+    <li>Программа остановится, текущая база сохранится в <code>backups/keep</code> (так ошибочный выбор можно отменить), база будет заменена копией, программа запустится снова.</li>
+  </ol>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Перенос на другой компьютер: установите программу (<b>start.bat</b>), положите файл копии в папку <code>backups</code>, запустите <b>restore.bat имя_файла</b>.
+  Пользователи и пароли переносятся вместе с копией. Проверить, что копия читается: <code>python tools/verify_backup.py</code>.</p>
+</div>
+{% endblock %}

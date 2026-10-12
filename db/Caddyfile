@@ -1,0 +1,8 @@
+# Optional HTTPS in front of the application (profile "https"). The certificate files are yours: ./certs/cert.pem and ./certs/key.pem
+{
+	auto_https off
+}
+:8443 {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy app:8000
+}

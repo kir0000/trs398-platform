@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Тренды{% endblock %}
+{% block head %}<script src="/static/plotly.min.js" charset="utf-8"></script>{% if lang == 'ru' %}<script src="/static/plotly-ru.js" charset="utf-8"></script>{% endif %}{% endblock %}
+{% block content %}
+<h1>Тренд выхода</h1>
+<form method="get" class="row" style="margin-bottom:14px">
+  <select name="beam_id" onchange="this.form.submit()"><option value="">Выберите пучок</option>
+  {% for b in beams %}<option value="{{ b.id }}" {{ 'selected' if beam and beam.id == b.id }}>{{ b.label }}</option>{% endfor %}</select>
+  <button>Показать</button>
+</form>
+{% if beam and summary %}
+  {% if series|length > 1 %}<form method="get" class="card row" style="gap:10px"><input type="hidden" name="beam_id" value="{{ beam.id }}">
+    <label style="margin:0">Ряд (опорные условия):</label>
+    <select name="cond" onchange="this.form.submit()">{% for r in series %}<option value="{{ r.key }}" {{ 'selected' if r.key == series_key }}>{{ r.label }} · записей {{ r.n }}, последняя {{ r.last.strftime('%d.%m.%Y') }}</option>{% endfor %}</select>
+    <span class="muted" style="font-size:13px">Значения, полученные при разных опорных условиях (SSD/SAD, глубина, поле, ожидаемая доза), в одном ряду не смешиваются.</span></form>
+  {% elif series %}<p class="muted" style="font-size:13px;margin:0 0 8px">Ряд: {{ series[0].label }}.</p>{% endif %}
+  {% if summary.n == 0 %}<div class="card muted">Для этого пучка нет утверждённых данных. Демо-данные в тренды не включаются.</div>
+  {% else %}
+  <div class="card">
+    <div class="row" style="gap:28px">
+      <div><div class="muted">Последнее</div><div class="big">{{ '%+.2f'|format(summary.last) }} %</div></div>
+      <div><div class="muted">Статус</div><div class="big {{ 'ok' if summary.status == 'норма' else 'warn' if summary.status.startswith('наб') else 'err' }}">{{ summary.status }}</div></div>
+      <div><div class="muted">Записей</div><div class="big">{{ summary.n }}</div></div>
+      {% if summary.trend_pct_per_month is not none %}<div><div class="muted">Тренд</div><div class="big">{{ '%+.3f'|format(summary.trend_pct_per_month) }} %/мес</div></div>{% endif %}
+    </div>
+    {% if summary.forecast_out_of_tolerance %}<p class="warn">Прогноз выхода за ±2 %: {{ summary.forecast_out_of_tolerance.strftime('%d.%m.%Y') }}</p>
+    {% elif summary.trend_pct_per_month is not none %}<p class="muted">Значимого тренда нет (меньше 0,05 %/мес).</p>{% endif %}
+  </div>
+  <div class="card">
+    <div id="plot" style="height:420px;display:none"></div>
+    <div id="svgchart">{{ chart|safe }}</div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">Наведите курсор на точку, чтобы увидеть дату и значение; колесо мыши и выделение масштабируют график. Красная точка: сигнал «за 3σ», оранжевая: прочие правила.</p>
+  </div>
+  <script>
+  (function () {
+    var d = {{ plot|tojson }};
+    if (!window.Plotly) return;
+    var color = d.signal.map(function (s, i) { return d.pre[i] ? '#9aa0a6' : s === 'за 3σ' ? '#b00020' : (s || d.cusum[i]) ? '#b07000' : '#2a5db0'; });
+    var size = d.signal.map(function (s, i) { return (s || d.cusum[i]) ? 10 : 6; });
+    var text = d.x.map(function (x, i) { return d.pre[i] ? 'до базового периода' : [d.signal[i], d.cusum[i]].filter(Boolean).join('; ') || 'в контроле'; });
+    var segEnd = function (g, k) { return g.end ? g.end : d.x[d.x.length - 1]; };
+    var line = function (g, y, name, c, dash) { return {x: [g.start, segEnd(g)], y: [y, y], mode: 'lines', name: name, hoverinfo: 'name+y', showlegend: false,
+      line: {color: c, width: 1.2, dash: dash}}; };
+    var traces = [{x: d.x, y: d.y, mode: 'lines+markers', name: 'отклонение, %', marker: {color: color, size: size}, line: {color: '#2a5db0', width: 1.4},
+      text: text, hovertemplate: '%{x|%d.%m.%Y}<br>%{y:+.3f} %<br>%{text}<extra></extra>'}];
+    d.segments.forEach(function (g) {
+      if (g.cl === null || !g.sigma) return;
+      traces.push(line(g, g.cl, 'CL', '#555', 'solid'),
+        line(g, g.cl + 2 * g.sigma, '+2σ', '#b07000', 'dot'), line(g, g.cl - 2 * g.sigma, '−2σ', '#b07000', 'dot'),
+        line(g, g.cl + 3 * g.sigma, '+3σ', '#b00020', 'dash'), line(g, g.cl - 3 * g.sigma, '−3σ', '#b00020', 'dash'));
+    });
+    if (!d.segments.length && d.cl !== null && d.sigma) {
+      var whole = {start: d.x[0], end: d.x[d.x.length - 1]};
+      traces.push(line(whole, d.cl, 'CL', '#555', 'solid'),
+        line(whole, d.cl + 2 * d.sigma, '+2σ', '#b07000', 'dot'), line(whole, d.cl - 2 * d.sigma, '−2σ', '#b07000', 'dot'),
+        line(whole, d.cl + 3 * d.sigma, '+3σ', '#b00020', 'dash'), line(whole, d.cl - 3 * d.sigma, '−3σ', '#b00020', 'dash'));
+    }
+    var whole2 = {start: d.x[0], end: d.x[d.x.length - 1]};
+    var tl = function (y, name, c, dash) { return line(whole2, y, name, c, dash); };
+    traces.push(tl(d.tolerance, '+допуск', '#1d7a46', 'longdash'), tl(-d.tolerance, '−допуск', '#1d7a46', 'longdash'));
+    document.getElementById('plot').style.display = 'block';
+    document.getElementById('svgchart').style.display = 'none';
+    Plotly.newPlot('plot', traces, {margin: {l: 55, r: 20, t: 10, b: 40}, yaxis: {title: 'отклонение, %', zeroline: false}, showlegend: false,
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', hovermode: 'closest'}, {displaylogo: false, responsive: true});
+  })();
+  </script>
+  {% if summary.sigma %}
+  <div class="card"><h2>CUSUM: накопленная сумма</h2>
+    <div id="cusumplot" style="height:260px"></div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">Сумма выше пунктира +H (5σ) или ниже −H означает сдвиг выхода вверх или вниз. Если сумма держится около нуля, выход стабилен. Подробнее: «Как читать CUSUM» внизу страницы.</p>
+  </div>
+  <script>
+  (function () {
+    var d = {{ plot|tojson }};
+    if (!window.Plotly || d.h === null) return;
+    var xp = [], cp = [], cm = [];                       // the sums restart in every segment: a gap between them
+    d.x.forEach(function (x, i) {
+      if (d.pre[i]) return;
+      if (i > 0 && d.segment[i] !== d.segment[i - 1] && xp.length) { xp.push(x); cp.push(null); cm.push(null); }
+      xp.push(x); cp.push(d.cusum_plus[i]); cm.push(d.cusum_minus[i]);
+    });
+    var traces = [
+      {x: xp, y: cp, mode: 'lines+markers', name: 'C⁺ (выше CL)', line: {color: '#d62728', width: 1.6, shape: 'hv'}, marker: {size: 5}, connectgaps: false,
+       hovertemplate: '%{x|%d.%m.%Y}<br>C⁺ = %{y:.3f} %<extra></extra>'},
+      {x: xp, y: cm, mode: 'lines+markers', name: 'C⁻ (ниже CL)', line: {color: '#f08c00', width: 1.6, shape: 'hv'}, marker: {size: 5}, connectgaps: false,
+       hovertemplate: '%{x|%d.%m.%Y}<br>C⁻ = %{y:.3f} %<extra></extra>'}];
+    var segs = d.segments.length ? d.segments : [{start: d.x[0], end: d.x[d.x.length - 1], h: d.h}];
+    segs.forEach(function (g, k) {
+      if (!g.h) return;
+      var e = g.end || d.x[d.x.length - 1];
+      [g.h, -g.h].forEach(function (y, j) {
+        traces.push({x: [g.start, e], y: [y, y], mode: 'lines', name: j ? 'порог −H' : 'порог +H = 5σ', hoverinfo: 'name', showlegend: k === 0,
+          line: {color: '#b00020', width: 1.2, dash: 'dash'}});
+      });
+    });
+    Plotly.newPlot('cusumplot', traces, {margin: {l: 55, r: 20, t: 10, b: 40}, yaxis: {title: 'сумма, %', zeroline: true, zerolinecolor: '#888'},
+      showlegend: true, legend: {orientation: 'h', y: -0.25}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', hovermode: 'closest'},
+      {displaylogo: false, responsive: true});
+  })();
+  </script>
+  {% endif %}
+  <div class="card">
+    <h2>Контрольные границы и базовые периоды</h2>
+    {% if summary.sigma %}
+    <p>Текущие границы: CL = {{ '%.4f'|format(summary.cl) }} %, σ = {{ '%.4f'|format(summary.sigma) }} % (MR̄/1,128), UCL(MR) = {{ '%.4f'|format(summary.ucl_mr) }}.</p>
+    {% else %}<p class="muted">Для границ нужно не меньше двух записей.</p>{% endif %}
+    {% if baseline_fixed %}
+    <p class="muted" style="font-size:13px;margin:0 0 6px">Каждый базовый период начинает свой отрезок статистики: границы (CL, σ) и накопленные суммы CUSUM считаются заново с его первой записи
+    и действуют до начала следующего периода. Записи до первого периода показаны серым, без границ и сигналов.</p>
+    <table><tr><th>Начало отрезка</th><th>Опорные записи по</th><th>Записей в отрезке</th><th>CL, %</th><th>σ, %</th><th>Задал</th>{% if user.role == 'admin' %}<th></th>{% endif %}</tr>
+    {% for g in summary.segments %}{% set r = period_rows[loop.index0] %}<tr>
+      <td>{{ g.start.strftime('%d.%m.%Y') }}</td><td>{{ g.ref_to.strftime('%d.%m.%Y') }}</td><td>{{ g.n }}{% if g.own and g.n %} <span class="muted" style="font-size:12px">(в опорном периоде меньше 2 записей: границы по самому отрезку)</span>{% endif %}</td>
+      <td>{{ '%.4f'|format(g.cl) if g.cl is not none else '—' }}</td><td>{{ '%.4f'|format(g.sigma) if g.sigma else '—' }}</td><td class="muted">{{ r.who or '' }}</td>
+      {% if user.role == 'admin' %}<td><form method="post" action="/trends/baseline/delete" class="inline" onsubmit="return confirm('Убрать этот базовый период?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ r.id }}"><button class="danger">Убрать</button></form></td>{% endif %}</tr>{% endfor %}</table>
+    {% else %}<p class="muted">Базовый период не задан: границы пересчитываются по всем записям.</p>{% endif %}
+    {% if user.role == 'admin' %}
+    <form method="post" action="/trends/baseline" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="beam_id" value="{{ beam.id }}">
+      <span class="muted">Добавить базовый период (например, после юстировки):</span><input type="date" name="from_date" required><input type="date" name="to_date" required><button>Зафиксировать</button></form>
+    {% endif %}
+  </div>
+  {% if signals %}
+  <div class="card"><h2>Сигналы (последние {{ signals|length }})</h2>
+    <table class="sortable"><tr><th>Дата</th><th>Откл., %</th><th>Правило</th><th>CUSUM</th></tr>
+    {% for p in signals %}<tr><td>{{ p.on.strftime('%d.%m.%Y') }}</td><td>{{ '%+.3f'|format(p.deviation_pct) }}</td><td>{{ p.signal or '' }}</td><td>{{ p.cusum_signal or '' }}</td></tr>{% endfor %}</table>
+  </div>{% endif %}
+  <div class="card"><details><summary style="cursor:pointer;font-weight:600">Как читать CUSUM</summary>
+    <p style="margin:8px 0 4px">CUSUM (кумулятивная сумма) накапливает небольшие отклонения от центральной линии. Поэтому он раньше карты Шухарта замечает медленный дрейф или небольшой постоянный сдвиг выхода, который в каждой отдельной точке тонет в шуме.</p>
+    <ul style="margin:4px 0;padding-left:20px">
+      <li>К накопленной сумме каждая запись добавляет своё отклонение от центральной линии CL, уменьшенное на допуск k = 0,5σ. Случайные колебания в пределах ±0,5σ не накапливаются.</li>
+      <li>Сумм две. C⁺ растёт, пока выход выше CL, и не опускается ниже нуля. C⁻ падает, пока выход ниже CL, и не поднимается выше нуля.</li>
+      <li>Сигнал подаётся, когда C⁺ больше H = 5σ («CUSUM+: сдвиг вверх») или C⁻ меньше −H («CUSUM−: сдвиг вниз»).</li>
+      <li>Пример: σ = 0,3 %, выход держится на 0,3 % выше CL. Каждая запись добавляет 0,3 − 0,15 = 0,15 %, порог H = 1,5 % будет пройден примерно на 10-й записи. Карта Шухарта с границами ±3σ = ±0,9 % такой сдвиг не заметит вообще.</li>
+      <li>Сумма не обнуляется после сигнала, поэтому подряд идущие сигналы относятся к одному и тому же сдвигу, а не к нескольким разным. Смотрите, с какой записи сумма начала расти: примерно с неё начался сдвиг.</li>
+      <li>На графике записи с сигналом CUSUM окрашены в оранжевый цвет, записи за 3σ в красный. В таблице «Сигналы» для каждой записи указано, какое правило сработало.</li>
+      <li>Что делать при сигнале: проверьте, не изменились ли условия (давление и температура, камера, электрометр, монитор ускорителя, выход ускорителя). Сигнал указывает на сдвиг, но не называет причину.</li>
+      <li>Ограничения. Границы считаются по самому журналу: если в него попал уже сдвинутый ряд, задайте «Базовый период» по времени, когда выход был стабилен. CUSUM не заменяет допуск: решение о перекалибровке принимается по отклонению от 1 сГр/MU и по неопределённости.</li>
+    </ul></details></div>
+  {% endif %}
+{% endif %}
+{% endblock %}

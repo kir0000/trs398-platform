@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Калибровка{% endblock %}
+{% block content %}
+{{ fdatalists() }}
+<h1>Калибровка: {{ c.chamber }}, SN {{ c.serial_no }}</h1>
+<div class="card">
+  {% if c.used %}
+  <p class="warn">Эта калибровка используется в измерениях ({{ c.used }}): менять её нельзя, чтобы не исказить протоколы.
+  Добавьте новую калибровку (новый сертификат) в разделе «Оборудование».</p>
+  <p><a class="btn" href="/equipment?tab=dosimeters">Назад</a></p>
+  {% else %}
+  <form method="post" action="/equipment/calibration/{{ c.id }}/edit"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/equipment?tab=dosimeters">
+    {% include "_cal_fields.html" %}
+    <p style="margin-top:14px"><button class="primary">Сохранить</button> <a class="btn" href="/equipment?tab=dosimeters">Отмена</a></p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

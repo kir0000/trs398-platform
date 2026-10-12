@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Очистка базы{% endblock %}
+{% block content %}
+<h1>Очистка базы</h1>
+{% if result %}<div class="card ok">Готово. Удалено: измерений {{ result.sessions }}, результатов {{ result.results }}, исторических записей {{ result.legacy }}. Действие записано в журнал аудита.</div>{% endif %}
+{% if error %}<div class="card err">{{ error }}</div>{% endif %}
+<div class="card"><h2>Сейчас в базе</h2>
+  <p>Измерений: <b>{{ counts.sessions }}</b> · результатов: <b>{{ counts.results }}</b> · исторических записей: <b>{{ counts.legacy }}</b> · пользователей: {{ counts.users }} · записей аудита: {{ counts.audit }}</p>
+  <p class="muted">Очистка не затрагивает пользователей, оборудование, справочники и журнал аудита. Удалённые данные восстановить нельзя, сначала сделайте резервную копию базы.</p>
+</div>
+<div class="card" style="border-color:var(--{{ 'bad' if backup.stale else 'ok' }})"><h2>Резервная копия</h2>
+  {% if backup.found %}<p>Последняя: <b>{{ backup.name }}</b>, {{ backup.when.strftime('%d.%m.%Y %H:%M') }}, {{ backup.size_kb }} КБ. Всего копий: {{ backup.count }}.</p>{% endif %}
+  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0">{{ backup.message }}</p>
+</div>
+<div class="card"><h2>Что удалить</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for k, v in scopes.items() %}<label style="color:var(--text);font-size:15px"><input type="radio" name="scope" value="{{ k }}" required> {{ v }}</label>{% endfor %}
+  <label>Причина (попадёт в журнал аудита)</label><input name="reason" required minlength="5" style="width:100%">
+  <label>Ваш пароль</label><input name="password" type="password" autocomplete="current-password" required>
+  <label>Для подтверждения введите слово {{ confirmation }}</label><input name="confirmation" autocomplete="off" required>
+  <p><button class="danger">Удалить безвозвратно</button></p>
+</form></div>
+{% endblock %}

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}TRS-398{% endblock %} · TRS-398 Rev.1</title>
+<style>
+sub,sup{font-size:.75em;line-height:0}sub sub{font-size:.85em}i sub,i sup{font-style:italic}
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5c6577;--line:#d9dde5;--accent:#2a5db0;--ok:#1d7a46;--warn:#9a6a00;--bad:#b00020}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--card:#1d222b;--text:#e6e9ef;--muted:#9aa3b5;--line:#303847;--accent:#7aa7f0;--ok:#5cc08a;--warn:#e0b050;--bad:#ff7a8a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:10px 32px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+header a{color:var(--text);text-decoration:none}header a:hover{color:var(--accent)}
+header .brand{font-weight:600}header .sp{flex:1}
+main{max-width:1760px;width:100%;margin:20px auto;padding:0 32px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:0 0 16px}
+h1{font-size:22px;margin:0 0 14px}h2{font-size:17px;margin:0 0 10px}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:13px}
+input,select,textarea{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;max-width:100%}
+input[type=checkbox]{width:auto}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 14px}
+button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:6px;padding:6px 14px;text-decoration:none;display:inline-block}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.danger{background:var(--bad);color:#fff;border-color:var(--bad)}
+.err{color:var(--bad);margin:8px 0}.ok{color:var(--ok)}.warn{color:var(--warn)}.muted{color:var(--muted)}
+.pill{font-size:12px;padding:2px 9px;border-radius:12px;border:1px solid var(--line)}
+.dev-up{color:#d62728}.dev-down{color:#f08c00}
+.s-approved{color:var(--ok)}.s-submitted{color:var(--warn)}.s-returned,.s-superseded,.s-voided{color:var(--bad)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+form.inline{display:inline}
+.big{font-size:22px;font-weight:600}
+header{position:sticky;top:0;z-index:50}
+table.sortable th{cursor:pointer;user-select:none;position:sticky;top:var(--hdr,56px);background:var(--card);z-index:20;white-space:nowrap}
+table.sortable th.w2{white-space:normal;width:150px;line-height:1.25}
+table.sortable th.nosort{cursor:default}
+table.sortable th.hasf::after{content:none!important}
+table.sortable th.hasf.asc .lbl::after{content:" ▲";font-size:10px;color:var(--accent)}
+table.sortable th.hasf.desc .lbl::after{content:" ▼";font-size:10px;color:var(--accent)}
+table.sortable td input:not([type=checkbox]){width:100%;min-width:110px;box-sizing:border-box}
+table.sortable td.nowrap{white-space:nowrap}
+table.compact td input:not([type=checkbox]){min-width:64px;width:100%;box-sizing:border-box}
+table.sortable tr.addrow td{border-top:2px solid var(--line);padding-top:10px}
+table.sortable th.asc::after{content:" ▲";font-size:10px;color:var(--accent)}
+table.sortable th.desc::after{content:" ▼";font-size:10px;color:var(--accent)}
+table.sortable th:not(.nosort):hover{color:var(--accent)}
+
+header{background:var(--card);border-bottom:2px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.07);gap:6px 10px;padding:7px 20px}
+header .brand{font-weight:700;padding-right:12px;border-right:1px solid var(--line);white-space:nowrap}
+nav.menu{display:flex;gap:2px;flex-wrap:nowrap;align-items:center;font-size:14px;white-space:nowrap}
+nav.menu a{padding:6px 9px;border-radius:8px;color:var(--text)}
+nav.menu a:hover{background:var(--bg);color:var(--accent)}
+nav.menu a.on{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-weight:600}
+nav.menu.admin{padding-left:10px;border-left:1px solid var(--line)}
+nav.menu.admin a{font-size:13px;color:var(--muted)}
+nav.menu.admin a.on{color:var(--accent)}
+header .who{display:flex;gap:10px;align-items:center;padding-left:10px;border-left:1px solid var(--line);white-space:nowrap}
+header .who button{padding:4px 12px}
+@media (max-width:1450px){nav.menu a{padding:6px 7px}header .who .muted{display:none}}
+@media (max-width:1250px){nav.menu{flex-wrap:wrap}}
+header .who a.lang{font-weight:600;border:1px solid var(--line);border-radius:6px;padding:2px 9px}
+table.sortable th input,table.sortable th select{display:block;width:100%;min-width:60px;margin-top:5px;padding:3px 6px;font-size:13px;font-weight:400;cursor:text;box-sizing:border-box}
+.fcount{font-size:13px;color:var(--muted);margin:0 0 6px;min-height:18px}
+.fcount a{color:var(--accent);cursor:pointer;margin-left:8px}
+@media (max-width:760px){table.sortable{display:block;overflow-x:auto}table.sortable th{position:static}}
+input.invalid,select.invalid{border-color:var(--bad)!important;background:color-mix(in srgb,var(--bad) 10%,var(--card))!important}
+input.unusual{border-color:var(--warn)}
+#fieldmsg{display:none;position:fixed;left:14px;bottom:14px;z-index:90;max-width:min(520px,92vw);padding:8px 12px;border-radius:8px;font-size:13px;background:var(--card);border:1px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.18)}
+#fieldmsg.bad{border-color:var(--bad);color:var(--bad)}#fieldmsg.warn{border-color:var(--warn);color:var(--warn)}
+</style>
+<script src="/static/htmx.min.js"></script>
+{% block head %}{% endblock %}
+</head>
+<body>
+{% if user %}
+<header>
+  {% set path = request.url.path %}
+  <a class="brand" href="/measurements">TRS-398 Rev.1</a>
+  <nav class="menu">
+    <a href="/measurements" class="{{ 'on' if path.startswith('/measurements') }}">Измерения</a>
+    <a href="/trends" class="{{ 'on' if path.startswith('/trends') }}">Тренды</a>
+    <a href="/compare" class="{{ 'on' if path.startswith('/compare') }}">Сравнение энергий</a>
+    <a href="/uncertainty" class="{{ 'on' if path.startswith('/uncertainty') }}">Неопределённость</a>
+    <a href="/equipment" class="{{ 'on' if path.startswith('/equipment') }}">Оборудование</a>
+    <a href="/help" class="{{ 'on' if path.startswith('/help') }}">Справка</a>
+  </nav>
+  {% if user.role == 'admin' %}<nav class="menu admin" title="Администрирование">
+    <a href="/admin/users" class="{{ 'on' if path.startswith('/admin/users') }}">Пользователи</a>
+    <a href="/admin/audit" class="{{ 'on' if path.startswith('/admin/audit') }}">Аудит</a>
+    <a href="/admin/backups" class="{{ 'on' if path.startswith('/admin/backups') }}">Копии</a>
+    <a href="/admin/purge" class="{{ 'on' if path.startswith('/admin/purge') }}">Очистка базы</a>
+  </nav>{% endif %}
+  <span class="sp"></span>
+  <div class="who">
+    <a href="/lang/{{ other_lang }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}" title="Language / Язык" class="lang">{{ other_lang|upper }}</a>
+    <span class="muted" title="{{ role_labels[user.role] }}">{{ user.full_name }}</span>
+    <form class="inline" method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button title="{{ user.full_name }} · {{ role_labels[user.role] }}">Выйти</button></form>
+  </div>
+</header>
+{% else %}
+<div style="text-align:right;padding:10px 32px"><a href="/lang/{{ other_lang }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}" title="Language / Язык" style="font-weight:600">{{ other_lang|upper }}</a></div>
+{% endif %}
+<main>{% block content %}{% endblock %}</main>
+<div class="muted" style="font-size:12px;text-align:center;margin:26px 0 14px">TRS-398 Rev.1 · версия {{ app_version }}</div>
+<script>
+(function () {
+  function hdr() { var h = document.querySelector('header'); if (h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px'); }
+  hdr(); window.addEventListener('resize', hdr);
+  function key(cell) {
+    if (cell.dataset.sort !== undefined) return cell.dataset.sort;
+    var inp = cell.querySelector('input:not([type=hidden]),select');
+    var t = (inp ? inp.value : cell.innerText).trim();
+    return t;
+  }
+  function parse(t) {
+    var d = t.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+    if (d) return [0, Date.UTC(+d[3], +d[2] - 1, +d[1])];
+    var n = t.replace(/\s/g, '').replace('−', '-').replace(',', '.').match(/^[+\-]?\d+(\.\d+)?/);
+    if (n && /^[+\-]?[\d.,\s−]+(%|[^\d.,]{0,3})?$/.test(t.replace(/\s/g, ''))) return [0, parseFloat(n[0])];
+    return [1, t.toLowerCase()];
+  }
+  function sortBy(table, col, dir) {
+    var head = table.querySelector('tr'), rows = Array.prototype.slice.call(table.querySelectorAll('tr')).slice(1)
+      .filter(function (r) { return r.parentNode === head.parentNode || r.parentNode.tagName === 'TBODY'; });
+    rows = rows.filter(function (r) { return r.cells.length > col && !r.querySelector('th') && !r.classList.contains('addrow'); });
+    var keyed = rows.map(function (r, i) { return {r: r, i: i, k: parse(key(r.cells[col]))}; });
+    keyed.sort(function (a, b) {
+      var x = a.k, y = b.k, c;
+      if (x[0] !== y[0]) c = x[0] - y[0];
+      else c = x[0] === 0 ? x[1] - y[1] : String(x[1]).localeCompare(String(y[1]), 'ru', {numeric: true});
+      return (c || a.i - b.i) * dir;
+    });
+    var parent = rows.length ? rows[0].parentNode : table;
+    keyed.forEach(function (o) { parent.appendChild(o.r); });
+    var add = table.querySelector('tr.addrow'); if (add) add.parentNode.appendChild(add);     // the input row stays last
+  }
+
+  // filters under the header: a list for columns with few values, a text field for the others
+  function dataRows(table) {
+    return Array.prototype.slice.call(table.querySelectorAll('tr')).filter(function (r) { return !r.querySelector('th'); });
+  }
+  function addFilters(table) {
+    var first = table.querySelector('tr'), heads = first ? first.querySelectorAll('th') : [];
+    var rows = dataRows(table).filter(function (r) { return r.cells.length === heads.length; });
+    if ((rows.length < 8 && !table.hasAttribute('data-filters')) || rows.length < 2 || !heads.length) return;      // short tables get filters only when asked (data-filters)
+    var boxes = [];
+    heads.forEach(function (th, col) {
+      var box = null;
+      var lbl = document.createElement('span'); lbl.className = 'lbl';          // the sort arrow follows the caption, not the filter box
+      while (th.firstChild) lbl.appendChild(th.firstChild);
+      th.appendChild(lbl); th.classList.add('hasf');
+      if (!th.classList.contains('nosort') && th.textContent.trim()) {
+        var vals = {};
+        rows.forEach(function (r) { var v = r.cells[col].innerText.replace(/\s+/g, ' ').trim(); vals[v] = 1; });
+        var list = Object.keys(vals).sort(function (a, b) { return a.localeCompare(b, 'ru', {numeric: true}); });
+        if (list.length > 1 && list.length <= 12) {
+          box = document.createElement('select');
+          var all = document.createElement('option'); all.value = ''; all.textContent = 'Все'; box.appendChild(all);
+          list.forEach(function (v) { var o = document.createElement('option'); o.value = v; o.textContent = v || '—'; box.appendChild(o); });
+          box.dataset.exact = '1';
+        } else if (list.length > 1) {
+          box = document.createElement('input'); box.type = 'search'; box.placeholder = 'фильтр';
+        }
+        if (box) { box.addEventListener('input', apply); box.addEventListener('change', apply); box.addEventListener('click', function (e) { e.stopPropagation(); }); th.appendChild(box); }
+      }
+      boxes[col] = box;
+    });
+    var info = document.createElement('div'); info.className = 'fcount';
+    table.parentNode.insertBefore(info, table);
+    function apply() {
+      var shown = 0, active = false;
+      rows.forEach(function (r) {
+        var ok = true;
+        boxes.forEach(function (b, col) {
+          if (!b || !b.value) return;
+          active = true;
+          var cellText = r.cells[col].innerText.replace(/\s+/g, ' ').trim();
+          if (b.dataset.exact ? cellText !== b.value : cellText.toLowerCase().indexOf(b.value.toLowerCase()) < 0) ok = false;
+        });
+        r.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      table.dispatchEvent(new CustomEvent('trs-filter', {detail: {active: active, rows: rows.filter(function (r) { return r.style.display !== 'none'; })}}));   // other widgets of the page can follow the filter
+      info.innerHTML = '';
+      if (active) {
+        info.appendChild(document.createTextNode('Показано ' + shown + ' из ' + rows.length));
+        var reset = document.createElement('a'); reset.textContent = 'сбросить фильтры';
+        reset.addEventListener('click', function () { boxes.forEach(function (b) { if (b) b.value = ''; }); apply(); });
+        info.appendChild(reset);
+      }
+    }
+  }
+  document.querySelectorAll('table.sortable').forEach(addFilters);
+  document.querySelectorAll('table.sortable').forEach(function (table) {
+    var ths = table.querySelectorAll('tr:first-child th');
+    ths.forEach(function (th, col) {
+      if (!th.textContent.trim()) th.classList.add('nosort');
+      if (th.dataset.default) th.classList.add(th.dataset.default);
+      th.addEventListener('click', function () {
+        if (th.classList.contains('nosort')) return;
+        var dir = th.classList.contains('asc') ? -1 : 1;
+        ths.forEach(function (o) { o.classList.remove('asc', 'desc'); });
+        th.classList.add(dir === 1 ? 'asc' : 'desc');
+        th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+        sortBy(table, col, dir);
+      });
+    });
+  });
+})();
+</script>
+
+<div id="fieldmsg" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  // what may be typed into a cell (data-kind of app/fields.py): numbers and series accept only digits, the sign, comma and point;
+  // outside the limits the cell turns red and cannot be saved, outside the typical range it only turns amber
+  var box = document.getElementById('fieldmsg');
+  function num(v) { var s = (v || '').replace(/\s+/g, '').replace(',', '.').replace('−', '-'); return s === '' ? null : (/^[+-]?\d+(\.\d+)?$/.test(s) ? parseFloat(s) : NaN); }
+  function fmt(x) { return String(x).replace('.', ','); }
+  function say(el, text, level) { if (!box) return; box.textContent = text || ''; box.className = level || ''; box.style.display = text ? 'block' : 'none'; }
+  function check(el) {
+    var d = el.dataset, msg = '', soft = '', v = el.value;
+    if (d.kind === 'num') {
+      var x = num(v);
+      if (x !== null) {
+        if (isNaN(x)) msg = 'Введите число, например 12,5';
+        else if ((d.lo !== undefined && x < +d.lo) || (d.hi !== undefined && x > +d.hi))
+          msg = (d.label || '') + ': допустимо от ' + fmt(d.lo) + ' до ' + fmt(d.hi) + (d.unit ? ' ' + d.unit : '');
+        else if (d.tlo !== undefined && (x < +d.tlo || x > +d.thi))
+          soft = (d.label || '') + ': необычное значение (обычно ' + fmt(d.tlo) + '–' + fmt(d.thi) + (d.unit ? ' ' + d.unit : '') + '), проверьте';
+      }
+    } else if (d.kind === 'series') {
+      var bad = v.trim().split(/[\s;]+/).filter(Boolean).some(function (p) { return isNaN(num(p)); });
+      if (bad) msg = 'Показания: числа через пробел, например 24,36 24,37';
+    }
+    el.setCustomValidity(msg);
+    el.classList.toggle('invalid', !!msg);
+    el.classList.toggle('unusual', !msg && !!soft);
+    return msg ? [msg, 'bad'] : soft ? [soft, 'warn'] : ['', ''];
+  }
+  document.querySelectorAll('input[data-kind]').forEach(function (el) {
+    var kind = el.dataset.kind;
+    if (kind === 'num' || kind === 'series') {
+      var allowed = kind === 'num' ? /[^0-9.,+\-−\s]/g : /[^0-9.,+\-−;\s]/g;
+      el.addEventListener('input', function () {          // letters cannot be typed or pasted
+        var clean = el.value.replace(allowed, '');
+        if (clean !== el.value) { var pos = Math.max(0, (el.selectionStart || 0) - (el.value.length - clean.length)); el.value = clean; el.setSelectionRange(pos, pos); }
+      });
+    }
+    function show() { var r = check(el); say(el, r[0], r[1]); }
+    el.addEventListener('input', show);
+    el.addEventListener('focus', show);
+    el.addEventListener('blur', function () { check(el); say(el, '', ''); });
+    check(el);
+  });
+})();
+</script>
+</body>
+</html>

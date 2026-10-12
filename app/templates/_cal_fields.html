@@ -1,0 +1,36 @@
+{# Fields of a calibration, shared by the add form and the edit page. `c` holds the current values (empty when adding). #}
+{% macro v(name) %}{% if c.get(name) is not none %}{{ c.get(name) }}{% endif %}{% endmacro %}
+{% macro pol(prefix, current) %}
+<label class="ck" style="color:var(--text);font-size:14px;margin:2px 10px 2px 0"><input type="checkbox" name="{{ prefix }}_plus" value="1" {{ 'checked' if current and '+' in current }}> +</label>
+<label class="ck" style="color:var(--text);font-size:14px;margin:2px 0"><input type="checkbox" name="{{ prefix }}_minus" value="1" {{ 'checked' if current and '−' in current }}> −</label>
+{% endmacro %}
+<div class="grid">
+  <div><label>{% filter sym %}ND,w, Гр/нКл{% endfilter %}</label><input name="nd_w" value="{{ v('nd_w') }}" required {{ fa('nd_w') }}></div>
+  <div><label>{% filter sym %}Качество при калибровке Q0{% endfilter %}</label>
+    <select name="q0">{% for o in q0_options %}<option {{ 'selected' if (c.get('q0') or 'Co-60') == o }}>{{ o }}</option>{% endfor %}</select></div>
+  <div><label>{% filter sym %}R50,w калибровочного пучка (если Q0 — электроны){% endfilter %}</label><input name="r50_q0" value="{{ v('r50_q0') }}" {{ fa('r50_q0') }}></div>
+  <div><label>{% filter sym %}Калибровочная глубина, г/см²{% endfilter %}</label><input name="cal_depth" value="{{ v('cal_depth') }}" placeholder="5" {{ fa('cal_depth') }}></div>
+  <div><label>{% filter sym %}P0, кПа{% endfilter %}</label><input name="p0" value="{{ v('p0') }}" placeholder="101,325" {{ fa('p0') }}></div>
+  <div><label>{% filter sym %}T0, °C{% endfilter %}</label><input name="t0" value="{{ v('t0') }}" placeholder="20 или 22" {{ fa('t0') }}></div>
+  <div><label>Отн. влажность при калибровке, %</label><input name="cal_rh" value="{{ v('cal_rh') }}" placeholder="50" {{ fa('cal_rh') }}></div>
+  <div><label>{% filter sym %}Напряжение при калибровке V1, В{% endfilter %}</label><input name="voltage_v" value="{{ v('voltage_v') }}" placeholder="-300" {{ fa('voltage_v') }}></div>
+  <div><label>Полярность при калибровке в лаборатории</label>{{ pol('pol_cal', c.get('polarity_cal')) }}
+    <label class="ck" style="color:var(--text);font-size:14px;margin:6px 0 0"><input type="checkbox" name="cal_pol_corrected" value="1" {{ 'checked' if c.get('cal_pol_corrected') }}> с поправкой на полярность</label></div>
+  <div><label>Полярность у пользователя</label>{{ pol('pol_user', c.get('polarity_user')) }}</div>
+  <div><label>Калибровочная лаборатория</label><input name="lab" value="{{ v('lab') }}" placeholder="ВНИИФТРИ" {{ fa('lab') }}></div>
+  <div><label>Дата калибровки</label><input type="date" name="calibrated_on" value="{{ c.get('calibrated_on') or '' }}" required></div>
+  <div><label>Действует до</label><input type="date" name="valid_until" value="{{ c.get('valid_until') or '' }}"></div>
+</div>
+<h3 style="font-size:14px;margin:14px 0 0">Электрометр</h3>
+<div class="grid">
+  <div><label>Модель электрометра</label><input name="el_model" value="{{ c.get('el_model') or '' }}" {{ fa('el_model') }}></div>
+  <div><label>Серийный № электрометра</label><input name="el_sn" value="{{ c.get('el_sn') or '' }}" {{ fa('el_sn') }}></div>
+  <div><label>Установленный диапазон</label><input name="el_range" value="{{ v('el_range') }}" placeholder="Medium" {{ fa('el_range') }}></div>
+  <div><label>Калибровка отдельно от камеры</label>
+    <label class="ck" style="color:var(--text);font-size:14px;margin:2px 0"><input type="checkbox" name="kelec_separate" value="1" {{ 'checked' if c.get('kelec_separate') }}> {% filter sym %}да, использовать kelec из свидетельства{% endfilter %}</label></div>
+  <div><label>{% filter sym %}kelec (K из свидетельства, например ВНИИФТРИ){% endfilter %}</label><input name="k_elec" value="{{ v('k_elec') }}" placeholder="1" {{ fa('k_elec') }}></div>
+  <div><label>Лаборатория калибровки электрометра</label><input name="kelec_lab" value="{{ v('kelec_lab') }}" {{ fa('kelec_lab') }}></div>
+  <div><label>Дата калибровки электрометра</label><input type="date" name="kelec_date" value="{{ c.get('kelec_date') or '' }}"></div>
+</div>
+<p class="muted" style="font-size:13px;margin:6px 0 0">{% filter sym %}Значение kelec применяется в расчёте (пункт (ii) листа) только если отмечено «калибровка отдельно от камеры»;
+иначе kelec = 1 (TRS-398 Rev.1, прим. c). Эти параметры задаются здесь, на листе расчёта они только отображаются.{% endfilter %}</p>

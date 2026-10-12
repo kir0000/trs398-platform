@@ -1,0 +1,11 @@
+.venv
+.git
+.env
+__pycache__
+tests
+importers
+docs
+db
+*.md
+!docs/USER_GUIDE.md
+!docs/USER_GUIDE.en.md

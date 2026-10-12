@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block head %}
+<style>
+:root{--in:#fff59d;--cy:#d4f1fb;--gr:#b9ecd0;--ink:#1d2330}
+@media (prefers-color-scheme:dark){:root{--in:#5c5400;--cy:#0e4a5f;--gr:#16583c;--ink:#e6e9ef}}
+.ws{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 22px 18px;max-width:1320px;margin:0 auto}
+.sec2{display:flex;flex-wrap:wrap;gap:6px 56px;align-items:flex-start}
+.in.ser{field-sizing:content;min-width:300px;max-width:560px}
+.sg{display:grid;justify-content:start;grid-template-columns:max-content auto max-content 100px max-content 100px max-content;gap:6px 10px;align-items:center;margin:6px 0 6px 22px}
+.sg.i0{margin-left:0}.sg.i2{margin-left:46px}.sg>.wl{text-align:right}.sg .c{text-align:right}
+@media (max-width:760px){.sg{display:flex;flex-wrap:wrap;margin-left:4px}}
+.cg{display:grid;grid-template-columns:max-content 110px max-content;gap:5px 10px;align-items:center;margin:2px 0 8px 46px}
+.cg .c{text-align:right}
+.pg{display:grid;grid-template-columns:max-content 62px 62px max-content;white-space:nowrap;gap:4px 10px;align-items:center;margin:2px 0 6px 0}
+.pg>span:nth-child(4n+1){text-align:left;min-width:190px}
+.in:disabled{background:#e4e4e4;color:#888;border-color:#ccc;cursor:not-allowed}
+.c.cy.st-ok{background:#c9f0d2}.c.cy.st-warn{background:#ffe3a3}.c.cy.st-err{background:#ffb3b3}
+@media (prefers-color-scheme:dark){.c.cy.st-ok{background:#1b5a32}.c.cy.st-warn{background:#6b5200}.c.cy.st-err{background:#7a1f1f}}
+#resbar{position:sticky;bottom:0;z-index:5;background:var(--card);border-top:3px solid var(--text);margin:18px -22px 0;padding:8px 22px 10px;box-shadow:0 -4px 10px rgba(0,0,0,.12)}
+#resbar:has(.rs-ok){border-top-color:#2e9e57}#resbar:has(.rs-warn){border-top-color:#d89a00}#resbar:has(.rs-err){border-top-color:#d03535}
+#resbar .big{font-size:20px}
+.ws h2{font-size:15px;margin:20px 0 6px;font-weight:700}
+.ws h1{font-size:19px;text-align:center;margin:0}
+.ws .sub1{text-align:center;font-weight:700;margin:2px 0 12px}
+.wr{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:6px 0 6px 22px;min-height:30px}
+.wr.i2{margin-left:46px}.wr.i0{margin-left:0}
+.wr .sp{flex:1 1 20px}
+.wl{white-space:normal}
+.in{background:var(--in);color:var(--ink);border:1px solid #b8ad3a;border-radius:3px;padding:4px 7px;font-weight:700;font-size:14px;text-align:right}
+select.in{text-align:left}
+input.in.t{text-align:left}
+.c{display:inline-block;min-width:78px;padding:4px 8px;border:1px solid var(--line);border-radius:3px;font-weight:700;text-align:right}
+.c.qsrc{min-width:0;font-size:12px;font-weight:600}.c.qin{background:#fff3b0}.c.qpdd{background:var(--cy)}.c.qwarn{background:#ffd9b3;color:#8a3b00}
+.c.dr{min-width:74px;font-size:13px}
+.c.cy{background:var(--cy)}.c.gr{background:var(--gr)}.c.w{min-width:140px;text-align:left}
+.u{font-size:12px;color:var(--muted)}
+.ck{display:inline-flex;align-items:center;gap:4px;margin:0;font-size:14px;color:var(--text)}
+.ck input{width:auto;margin:0}
+.fm{font-family:"Times New Roman",serif;font-size:16px}
+.fm i,.wl i{font-style:italic}
+.q{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:11px;line-height:1;padding:0;cursor:pointer}
+.q:hover,.q.on{background:var(--accent);color:#fff}
+.hint{font-size:13px;line-height:1.45;background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:6px 10px;margin:-2px 0 6px 22px;max-width:900px}
+.info{font-size:13px;color:var(--muted);margin:2px 0 4px 22px}
+.sheetnote{font-size:13px;color:var(--muted);margin:0 0 12px;text-align:center}
+.legend span{display:inline-block;padding:1px 8px;margin:0 3px;border:1px solid var(--line);border-radius:3px;color:var(--ink)}
+@media (max-width:760px){.wr,.wr.i2{margin-left:4px}.sp{display:none}}
+</style>
+{% endblock %}
+
+{% macro I(name, w='9ch', ph='', cls='') %}<input class="in {{ cls }}" id="{{ name }}" name="{{ name }}" value="{{ f.get(name, '') }}" style="width:{{ w }}" placeholder="{{ ph }}"{% set a = fa(name) %}{{ a if a else ' autocomplete="off" inputmode="decimal"' }}>{% endmacro %}
+{% macro T(name, w='22ch', ph='') %}<input class="in t" id="{{ name }}" name="{{ name }}" value="{{ f.get(name, '') }}" style="width:{{ w }}" placeholder="{{ ph }}" autocomplete="off">{% endmacro %}
+{% macro C(id, kind='cy', cls='') %}<span id="live_{{ id }}" class="c {{ kind }} {{ cls }}">—</span>{% endmacro %}
+{% macro Q(help) %}<button type="button" class="q" data-help="{{ help|sym|forceescape }}" title="{{ help|sym_plain }}" aria-label="Пояснение">?</button>{% endmacro %}
+{% macro RB(name, value, label, checked) %}<label class="ck"><input type="radio" name="{{ name }}" value="{{ value }}" {{ 'checked' if checked }}> {{ label }}</label>{% endmacro %}
+
+{% block content %}
+{% if error %}<div class="card err">{{ error }}</div>{% endif %}
+<form method="post" action="{{ action }}" class="ws" data-new="{{ '1' if is_new else '' }}" hx-post="/measurements/preview" hx-target="#result" hx-trigger="change, keyup delay:700ms, load" hx-swap="innerHTML">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="modality" value="{{ modality }}">
+
+<h1>Рабочий лист для определения поглощённой дозы в воде</h1>
+<div class="sub1">{{ 'в высокоэнергетических пучках фотонов' if modality == 'photon' else 'в пучках электронов высоких энергий' }} по формализму TRS-398 Rev.1 (МАГАТЭ, 2024)</div>
+<div class="sheetnote legend">Поля: <span style="background:var(--in)">жёлтые — вводите</span><span style="background:var(--cy)">голубые — считаются сами</span><span style="background:var(--gr)">зелёные — из «Оборудования» (на листе не меняются)</span>· знак <button type="button" class="q on" style="cursor:default">?</button> открывает пояснение</div>
+
+<div class="wr i0"><span class="wl">Пользователь</span><span class="c w">{{ user.full_name }}</span><span class="sp"></span>
+  <span class="wl">Дата:</span><input class="in" type="date" name="measured_on" value="{{ f.get('measured_on', '') }}" required style="text-align:left"> {{ Q('Дата измерения: попадёт в протокол и на график тренда.') }}</div>
+
+<h2>1. Радиотерапевтическое оборудование и референсные условия измерения <i>D</i><sub>w,<i>Q</i></sub></h2>
+<div class="wr"><span class="wl">Линейный ускоритель, пучок:</span>
+  <select class="in" id="beam_id" name="beam_id" required style="min-width:260px">{% for b in beams %}<option value="{{ b.id }}" data-linac="{{ ((b.linac_model or '') ~ (' SN ' ~ b.linac_serial if b.linac_serial else '')).strip() }}" data-city="{{ b.city or '' }}" data-rate="{{ '%g'|format(b.dose_rate_mu) if b.dose_rate_mu is not none }}" data-field="{{ b.field_size or '' }}" data-phantom="{{ b.phantom or 'водный' }}" data-cpl="{{ '%g'|format(b.c_pl) if b.c_pl is not none }}" data-hpl="{{ '%g'|format(b.h_pl) if b.h_pl is not none }}" data-zmax="{{ '%g'|format(b.zmax) if b.zmax is not none }}" data-winm="{{ b.window_material or '' }}" data-wint="{{ '%g'|format(b.window_thickness) if b.window_thickness is not none }}" data-phantom="{{ b.phantom or '' }}" data-calmu="{{ '%g'|format(b.cal_mu) if b.cal_mu is not none }}" data-expcgy="{{ '%g'|format(b.exp_cgy_mu) if b.exp_cgy_mu is not none }}" data-expz="{{ '%g'|format(b.exp_zref) if b.exp_zref is not none }}" data-expsrc="{{ b.exp_source or '' }}" data-refdepth="{{ '%g'|format(b.ref_depth) if b.ref_depth is not none }}" data-pddz="{{ '%g'|format(b.pdd_zref) if b.pdd_zref is not none }}" data-tmrz="{{ '%g'|format(b.tmr_zref) if b.tmr_zref is not none }}" data-fff="{{ 1 if b.fff else 0 }}" data-energy="{{ '%g'|format(b.nominal_energy) }}{{ ' FFF' if b.fff }}" {{ 'selected' if f.get('beam_id') == b.id|string }}>{{ b.label }}</option>{% else %}<option value="">нет пучков: добавьте в «Оборудование»</option>{% endfor %}</select>
+  {{ Q('Аппараты и пучки добавляет администратор в разделе «Оборудование». Номинальный потенциал и тип фильтра (СВФ / БВФ) берутся из выбранного пучка.') }}
+  <span class="sp"></span><span class="wl">Город, страна:</span><span class="c gr w" id="e_city">—</span></div>
+<div class="wr"><span class="wl">Модель, серийный №:</span><span class="c w" id="linac_info" style="min-width:260px">—</span>
+  {{ Q('Модель и серийный номер задаются в разделе «Оборудование» (администратор) и подставляются автоматически.') }}
+  <span class="sp"></span><span class="wl">Номинальная мощность дозы:</span><span class="c gr" id="e_rate">—</span><span class="u">MU мин<sup>−1</sup></span>
+  {{ Q('Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}</div>
+<div class="wr"><span class="wl">Тип референсного фантома:</span><span class="c gr w" id="e_phantom">—</span>
+  <span class="sp"></span>
+  {% if modality == 'photon' %}<span class="wl">СВФ (WFF) или БВФ (FFF):</span><span class="c w" id="beam_filter">—</span>
+  {% else %}<span class="wl">Референсный аппликатор:</span><span class="c gr" id="e_field">—</span><span class="u">см × см</span>{% endif %}</div>
+{% if modality == 'photon' %}
+<div class="wr"><span class="wl">Референсный размер поля:</span><span class="c gr" id="e_field">—</span><span class="u">см × см</span>
+  {{ Q('Референсное поле. Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}
+  <span class="sp"></span><span class="wl">Качество пучка, <i>Q</i> (<i>TPR</i><sub>20,10</sub>):</span>{{ I('tpr', '8ch') }}
+  {{ Q('Качество пучка Q можно ввести прямо (измеренное TPR20,10) или оставить поле пустым и ввести PDD(10) и PDD(20): тогда TPR20,10 рассчитывается по формулам ниже. Если заполнено и то и другое, в расчёт идёт введённое значение, а при расхождении более 0,003 будет предупреждение. Источник показан справа от Q. Таблица 16 охватывает 0,56–0,82; вне диапазона kQ не определён, расчёт не выполняется. Подробнее: раздел 6.3 TRS-398 Rev.1.') }}
+  <span class="u">→ <i>Q</i> =</span>{{ C('q') }}<span class="u">источник:</span>{{ C('qsrc', 'cy', 'qsrc') }}</div>
+<div class="wr"><span class="wl">Геометрия:</span>{{ RB('geometry', 'SSD', 'SSD', f.get('geometry', 'SSD') == 'SSD') }}{{ RB('geometry', 'SAD', 'SAD', f.get('geometry') == 'SAD') }}
+  {{ Q('SSD: референсное расстояние 100 см до поверхности (SSD). SAD: камера на глубине 10 см при SSD = 90 см (расстояние источник–ось 100 см); тогда используется TMR вместо PDD.') }}
+  <span class="sp"></span><span class="wl"><i>PDD</i>(10), %:</span>{{ I('pdd10', '7ch') }}<span class="wl"><i>PDD</i>(20), % (СВФ):</span>{{ I('pdd20', '7ch') }}
+  {{ Q('PDD при SSD 100 см, поле 10 × 10. Для пучков без фильтра (FFF): TPR20,10 = −0,7898 + 0,0329·PDD10 − 0,000166·PDD10². Для пучков с фильтром: TPR20,10 = 1,2661·(PDD20/PDD10) − 0,0595 (TRS-398 Rev.1, 6.3.1, сноска 36).') }}</div>
+<div class="info" style="margin-left:0;text-align:right"><span id="qhint_fff" style="display:none">{% filter sym %}БВФ: PDD(20) не нужен. Q рассчитывается по PDD(10) либо введите измеренное TPR20,10 (разд. 6.3 TRS-398 Rev.1).{% endfilter %}</span><span id="qhint_flt" style="display:none">{% filter sym %}СВФ: Q рассчитывается по PDD(10) и PDD(20) либо введите измеренное TPR20,10 (разд. 6.3 TRS-398 Rev.1).{% endfilter %}</span></div>
+<div class="wr"><span class="wl">Референсная глубина <i>z</i><sub>ref</sub>:</span>{{ I('zref', '7ch', '10') }}<span class="u">г см<sup>−2</sup></span>
+  {{ Q('По TRS-398 Rev.1 для фотонов 10 г/см². Пусто = 10.') }}
+  <span class="sp"></span><span class="wl">Референсное расстояние (SSD):</span>{{ I('ref_distance', '7ch', '100') }}<span class="u">см</span>
+  {{ Q('Расстояние источник–поверхность при SSD, по умолчанию 100 см. Входит в SCD = SSD + zref для поправки kvol.') }}</div>
+{% else %}
+<div class="wr"><span class="wl">Измеренное <i>R</i><sub>50</sub>:</span>{{ I('r50', '8ch') }}<span class="u">г см<sup>−2</sup></span>
+  {{ Q('Ионизационное R50 (глубина 50 % ионизации). Качество пучка в воде: R50,w = cpl·R50·1,029 − 0,06 (для R50 до 10 г/см²).') }}
+  <span class="sp"></span><span class="wl">Референсное расстояние (SSD):</span><span class="c">100</span><span class="u">см</span></div>
+<div class="wr"><span class="wl">Качество пучка, <i>Q</i> (<i>R</i><sub>50,w</sub>):</span>{{ C('r50w') }}<span class="u">г см<sup>−2</sup></span>
+  <span class="sp"></span><span class="wl">Референсная глубина <i>z</i><sub>ref,w</sub> = 0,6·<i>R</i><sub>50,w</sub> − 0,1:</span>{{ C('zref') }}<span class="u">г см<sup>−2</sup></span><span class="muted" id="e_refdepth" style="font-size:12px;margin-left:8px"></span></div>
+{% endif %}
+
+<h2>2. Ионизационная камера (ИК) и электрометр</h2>
+<div class="wr"><span class="wl">Модель ИК, серийный №, калибровка:</span>
+  <select class="in" id="calibration_id" name="calibration_id" required style="min-width:340px">{% for c in cals %}<option value="{{ c.id }}" data-wallm="{{ c.wallm }}" data-wallt="{{ c.wallt }}" data-nd="{{ c.nd_w }}" data-ndwarn="{{ c.nd_warn|sym_plain if c.nd_warn else '' }}" data-kelec="{{ c.kelec_eff }}" data-q0="{{ c.q0 or '' }}" data-v1="{{ c.v1 }}" data-r50q0="{{ '%g'|format(c.r50_q0) if c.r50_q0 is not none }}" data-depth="{{ '%g'|format(c.cal_depth) if c.cal_depth is not none }}" data-p0="{{ '%g'|format(c.p0) if c.p0 is not none }}" data-t0="{{ '%g'|format(c.t0) if c.t0 is not none }}" data-rh="{{ '%g'|format(c.cal_rh) if c.cal_rh is not none }}" data-polcal="{{ c.polarity_cal or '' }}" data-polcorr="{{ 1 if c.cal_pol_corrected else 0 }}" data-poluser="{{ c.polarity_user or '' }}" data-elrange="{{ c.el_range or '' }}" data-keleclab="{{ c.kelec_lab or '' }}" data-keleldate="{{ c.kelec_date.strftime('%d.%m.%Y') if c.kelec_date else '' }}" data-lab="{{ c.lab or '' }}" data-elmodel="{{ c.el_model or '' }}" data-elsn="{{ c.el_sn or '' }}" data-sep="{{ 1 if c.kelec_separate else 0 }}" data-date="{{ c.calibrated_on.strftime('%d.%m.%Y') }}" data-valid="{{ c.valid_until.strftime('%d.%m.%Y') if c.valid_until else '' }}" {{ 'selected' if f.get('calibration_id') == c.id|string }} {{ 'disabled' if c.expired }}>{{ c.name }} (SN {{ c.serial_no }}), {{ c.calibrated_on.strftime('%d.%m.%Y') }}{% if c.expired %} — срок истёк {{ c.valid_until.strftime('%d.%m.%Y') }}{% endif %}</option>{% else %}<option value="">нет калибровок: добавьте в «Оборудование»</option>{% endfor %}</select>
+  {{ Q('Калибровки добавляются в разделе «Оборудование». Калибровочный фактор ND,w берётся из сертификата производителя (без учёта поправки ВНИИФТРИ); если Q0 — 60Co, он обозначается ND,w.') }}</div>
+<div class="wr"><span class="wl">Стенка ИК</span><span class="wl" style="margin-left:14px">материал:</span><span class="c w" id="wall_m">—</span>
+  <span class="wl" style="margin-left:14px">толщина:</span><span class="c" id="wall_t">—</span><span class="u">г см<sup>−2</sup></span></div>
+<div class="wr"><span class="wl"><b>Калибр. фактор поглощённой дозы в воде</b></span><span class="fm"><i>N</i><sub><i>D</i>,w,<i>Q</i><sub>0</sub></sub> =</span><span class="c gr" id="cal_nd">—</span><span class="u">Гр/нКл</span><span id="cal_nd_warn" style="color:var(--bad);font-weight:600;font-size:13px"></span></div>
+<div class="wr"><span class="wl">Калибр. лаборатория:</span><span class="c w" id="cal_lab">—</span><span class="wl" style="margin-left:14px">Дата калибр.:</span><span class="c" id="cal_date" style="min-width:100px">—</span></div>
+<div class="wr"><span class="wl">Качество при калибр. <i>Q</i><sub>0</sub>:</span><span class="c gr w" id="cal_q0">—</span>
+  {% if modality == 'electron' %}<span class="wl">Если <i>Q</i><sub>0</sub> — электронный пучок, <i>R</i><sub>50,w</sub>:</span><span class="c gr" id="e_r50q0">—</span><span class="u">г см<sup>−2</sup></span>{% endif %}
+  {{ Q('Co-60: kQ из Таблицы 20 Rev.1. Электронный пучок: kQ,Qint из Таблицы 21 (нужен R50,w калибровочного пучка). Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}
+  <span class="wl" style="margin-left:14px">Калибр. глубина:</span><span class="c gr" id="e_depth">—</span><span class="u">г см<sup>−2</sup></span></div>
+<div class="wr"><span class="wl">Референсные условия калибровки:</span>
+  {{ Q('Из сертификата калибровки. Входят в kTP = (273,2+T)·P0 / ((273,2+T0)·P). Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}</div>
+<div class="sec2">
+<div class="cg">
+  <span class="wl"><i>P</i><sub>0</sub>:</span><span class="c gr" id="e_p0">—</span><span class="u">кПа</span>
+  <span class="wl"><i>T</i><sub>0</sub>:</span><span class="c gr" id="e_t0">—</span><span class="u">°C</span>
+  <span class="wl">Отн. влажность:</span><span class="c gr" id="e_rh">—</span><span class="u">%</span>
+  <span class="wl">Напряжение при калибр. <i>V</i><sub>1</sub>:</span><span class="c gr" id="cal_v1">—</span><span class="u">V</span>
+</div>
+<div class="pg">
+  <span class="wl">Полярность при калибровке:</span><span class="ck"><b id="pc_plus">☐</b> +</span><span class="ck"><b id="pc_minus">☐</b> −</span><span class="ck"><b id="pc_corr">☐</b> с поправкой на полярность</span>
+  <span class="wl">Полярность у пользователя:</span><span class="ck"><b id="pu_plus">☐</b> +</span><span class="ck"><b id="pu_minus">☐</b> −</span><span>
+  {{ Q('Знаки напряжения и «с поправкой на полярность» заданы в «Оборудовании» при добавлении калибровки. M в знаменателе kpol берётся при полярности пользователя. Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}</span></div>
+</div>
+<div class="wr"><span class="wl">Модель электрометра:</span><span class="c w" id="el_model">—</span><span class="wl">SN:</span><span class="c w" id="el_sn">—</span>
+  {{ Q('Электрометр и его серийный номер задаются при добавлении калибровки в разделе «Оборудование».') }}
+  <span class="wl">Калибр. отдельно от камеры:</span><span class="c" id="el_sep" style="min-width:70px">—</span>
+  <span class="wl" style="margin-left:14px">Установленный диапазон:</span><span class="c gr" id="el_range">—</span>
+  {{ Q('Диапазон измерения электрометра. Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}</div>
+<div class="wr"><span class="wl">Коэф-т калибровки электрометра <i>k</i><sub>elec</sub>:</span>{{ C('kelec', 'gr') }}<span class="u">безразмерн.</span><span class="u" id="kelec_note"></span>
+  {{ Q('Применяется значение K из свидетельства (например, ВНИИФТРИ) только если в «Оборудовании» отмечено, что электрометр калибруется отдельно от камеры; иначе kelec = 1 (TRS-398 Rev.1, форма 6.9, прим. c).') }}</div>
+<div class="wr" id="kelec_row2" style="display:none"><span class="wl">Если да, то калибр. лаборатория:</span><span class="c gr w" id="kelec_lab">—</span><span class="wl">Дата:</span><span class="c gr" id="kelec_date" style="min-width:100px">—</span></div>
+
+{% if modality == 'electron' %}
+<h2>3. Фантом</h2>
+<div class="wr"><span class="wl">Водный фантом</span><span class="wl" style="margin-left:14px">материал окна:</span><span class="c gr" id="e_winm">—</span><span class="wl">толщина:</span><span class="c gr" id="e_wint">—</span><span class="u">г см<sup>−2</sup></span></div>
+<div class="wr"><span class="wl">Пластиковый фантом:</span><span class="c gr w" id="e_plastic">—</span>
+  <span class="wl"><i>c</i><sub>pl</sub> — коэф. масштаб. глубины:</span><span class="c gr" id="e_cpl">—</span><span class="wl"><i>h</i><sub>pl</sub> — коэф. масштаб. флюенса:</span><span class="c gr" id="e_hpl">—</span>
+  {{ Q('Только для пластиковых фантомов: референсная глубина в пластике zref,pl = zref / cpl; показания умножаются на hpl. Значения для материалов: Таблица 7.VI TRS-398. Для воды 1. ' ~ 'Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}</div>
+{% endif %}
+
+<h2>{{ '3' if modality == 'photon' else '4' }}. Показания дозиметра<sup>b</sup> и поправки на влияющие величины</h2>
+<div class="wr"><span class="wl">Нескорр. показания дозиметра при <i>V</i><sub>1</sub> и полярности пользователя (серия):</span>
+  <input class="in ser" id="m1" name="m1" value="{{ f.get('m1', '') }}" placeholder="24,36 24,36 24,36" {{ fa('m1') }}>
+  <span class="u">среднее:</span>{{ C('m1avg', 'gr') }}<span class="u">нКл, дрейф:</span>{{ C('dr_m1', 'cy', 'dr') }}
+  {{ Q('Заряд, собранный электрометром. Значения серии через пробел, расчёт берёт среднее. Берите серию без дрейфа в одну из сторон: рядом показан дрейф серии (наклон тренда в % от среднего; зелёный до 0,2 %, жёлтый до 0,5 %, красный больше). Показания проверьте на утечку (прим. b). Поправки kpol и ks берутся из показаний (iii) и (iv) ниже.') }}</div>
+<div class="wr"><span class="wl">Используемое значение MU:</span>{{ I('mu', '8ch', '200') }}<span class="u">MU</span>
+  <span class="fm" style="margin-left:28px"><i>M</i><sub>1</sub> =</span>{{ C('mper') }}<span class="u">нКл/MU</span></div>
+
+<div class="wr i0"><span class="wl">(i)</span><span class="wl" style="margin-left:6px"><i>P</i>:</span>{{ I('pressure', '8ch', '100,63') }}<span class="u">кПа</span>
+  <span class="wl"><i>T</i>:</span>{{ I('temp', '6ch', '23') }}<span class="u">°C</span><span class="wl">Отн. влажность:</span>{{ I('humidity', '6ch', '50') }}<span class="u">%</span><span class="warn" id="rh_warn" style="font-size:13px"></span>
+  {{ Q('Давление и температура воздуха при измерении (допустимо 80–110 кПа и 10–35 °C). Относительная влажность: по TRS-398 в диапазоне 20–80 % её влиянием на показания можно пренебречь, поправку не вводят; вне этого диапазона появится предупреждение. По умолчанию 50 %. Значение идёт в протокол.') }}</div>
+<div class="wr i2"><span class="fm"><i>k</i><sub>TP</sub> = (273,2 + <i>T</i>) <i>P</i><sub>0</sub> / ((273,2 + <i>T</i><sub>0</sub>) <i>P</i>) =</span>{{ C('ktp') }}</div>
+<div class="wr i0"><span class="wl">(ii)</span><span class="wl" style="margin-left:6px"><i>k</i><sub>elec</sub> — см. раздел 2 (берётся из калибровки)</span></div>
+
+<div class="wr i0" style="margin-top:14px"><span class="wl">Показания (iii) и (iv) определяются один раз для пучка и камеры; для нового измерения подставляются первоначальные.</span>
+  <button type="button" id="refbtn">Подставить первоначальные показания пучка</button>
+  <button type="button" id="refsaved">Подставить опорные показания</button>
+  <button type="button" id="refsave">Сделать эти значения опорными</button>
+  {{ Q('Поправки kpol и ks для данного аппарата и энергии определяют по серии показаний (M+, M−, M при V1 и V2). Они меняются мало, поэтому для следующих измерений берутся опорные показания этого пучка и камеры: те, что вы сохранили кнопкой «Сделать эти значения опорными» (качество пучка, серия M и MU, показания (iii) и (iv)), а если их нет — первоначальные (первая утверждённая запись). PDD(zref) и TMR(zref) берутся из «Оборудования». Любое значение можно изменить: тогда расчёт пойдёт по вашим числам.') }}</div>
+<div class="info" id="refnote" style="margin:0 0 4px 22px"></div>
+<div class="sg i0">
+  <span class="wl">(iii) Корр. полярности<sup>d</sup>: показание на +<i>V</i><sub>1</sub>, <i>M</i><sub>+</sub> =</span><input class="in ser" name="m_plus" value="{{ f.get('m_plus', '') }}" {{ fa('m_plus') }}><span class="u">среднее:</span>{{ C('mpavg', 'gr') }}<span class="u">нКл, дрейф:</span>{{ C('dr_plus', 'cy', 'dr') }}<span></span>
+  <span class="wl">показание на −<i>V</i><sub>1</sub>, <i>M</i><sub>−</sub> =</span><input class="in ser" name="m_minus" value="{{ f.get('m_minus', '') }}" {{ fa('m_minus') }}><span class="u">среднее:</span>{{ C('mmavg', 'gr') }}<span class="u">нКл, дрейф:</span>{{ C('dr_minus', 'cy', 'dr') }}<span>
+  {{ Q('kpol = (|M+| + |M−|) / (2M), где M — показание при полярности пользователя (прим. d). Это серия M+ или M− в зависимости от полярности пользователя, заданной в «Оборудовании»; если заданы обе полярности или ни одной, берётся серия из п. 3. Поэтому нужны только две серии: M+ (при +V1) и M− (при −V1). Для каждой серии показаны среднее и дрейф: наклон линии тренда по серии в % от среднего. Зелёный до 0,2 %, жёлтый до 0,5 %, красный больше. Если M+ и M− не заполнены, kpol = 1.') }}</span>
+</div>
+<div class="wr i2"><span class="fm"><i>k</i><sub>pol</sub> = (|<i>M</i><sub>+</sub>| + |<i>M</i><sub>−</sub>|) / 2<i>M</i> =</span>{{ C('kpol') }}
+  <span class="sp"></span><span class="wl"><i>k</i><sub>pol</sub>(<i>Q</i><sub>0</sub>) — только если <i>Q</i> ≠ <i>Q</i><sub>0</sub>:</span>{{ I('k_pol_q0', '7ch') }}
+  {{ Q('Если качество пучка Q отличается от Q0, kpol делится на kpol при калибровке. Иначе оставьте пустым (1).') }}</div>
+
+<div class="wr i0"><span class="wl">(iv)</span><span class="wl" style="margin-left:6px">Коррекция рекомбинации (метод двух напряжений)</span></div>
+<div class="wr i2"><span class="wl">Напр. поляризации:</span><span class="wl"><i>V</i><sub>1</sub> (нормальное) =</span>{{ I('v1', '7ch', '-300') }}<span class="u">V</span>
+  {{ Q('Рабочее напряжение с учётом знака (например −300). По модулю должно быть больше V2.') }}
+  <span class="wl" style="margin-left:28px"><i>V</i><sub>2</sub> (уменьш.) =</span>{{ I('v2', '7ch', '-100') }}<span class="u">V</span>
+  {{ Q('Уменьшенное напряжение. Таблица 10 Rev.1 охватывает отношения V1/V2 от 2 до 10; вне диапазона расчёт не выполняется.') }}</div>
+<div class="wr i2"><span class="wl">Показания при каждом <i>V</i>:</span></div>
+<div class="sg i2">
+  <span class="wl"><i>M</i><sub>1</sub> при <i>V</i><sub>1</sub> (серия) =</span><input class="in ser" name="m1_v1" value="{{ f.get('m1_v1', '') }}" {{ fa('m1_v1') }}><span class="u">среднее:</span>{{ C('m1ksavg', 'gr') }}<span class="u">нКл, дрейф:</span>{{ C('dr_m1ks', 'cy', 'dr') }}<span></span>
+  <span class="wl"><i>M</i><sub>2</sub> при <i>V</i><sub>2</sub> (серия) =</span><input class="in ser" id="m2" name="m2" value="{{ f.get('m2', '') }}" {{ fa('m2') }}><span class="u">среднее:</span>{{ C('m2avg', 'gr') }}<span class="u">нКл, дрейф:</span>{{ C('dr_m2', 'cy', 'dr') }}<span>
+  {{ Q('ks = a0 + a1·(M1/M2) + a2·(M1/M2)². Предполагается, что лаборатория внесла поправку на рекомбинацию при калибровке (прим. f); иначе вместо ks нужен коэффициент из сертификата.') }}</span>
+</div>
+<div class="wr i2"><span class="wl">Тип пучка:</span>{{ RB('pulsed_scanned', '', 'импульсный', not f.get('pulsed_scanned')) }}{{ RB('pulsed_scanned', '1', 'имп.-сканир.', f.get('pulsed_scanned')) }}
+  {{ Q('Коэффициенты a0–a2 в Таблице 10 различны для импульсных и импульсно-сканирующих пучков. Обычные клинические ускорители: импульсный.') }}</div>
+<div class="wr i2"><span class="wl">Соотношение напряжений <i>V</i><sub>1</sub> / <i>V</i><sub>2</sub> =</span>{{ C('vr') }}<span class="sp"></span><span class="wl">Отношение показаний <i>M</i><sub>1</sub> / <i>M</i><sub>2</sub> =</span>{{ C('mr') }}</div>
+<div class="wr i2"><span class="sp"></span><span class="wl"><i>a</i><sub>0</sub> =</span>{{ C('a0', 'cy', 'n') }}<span class="wl"><i>a</i><sub>1</sub> =</span>{{ C('a1', 'cy', 'n') }}<span class="wl"><i>a</i><sub>2</sub> =</span>{{ C('a2', 'cy', 'n') }}</div>
+<div class="wr i2"><span class="fm"><i>k</i><sub>s</sub> = <i>a</i><sub>0</sub> + <i>a</i><sub>1</sub>(<i>M</i><sub>1</sub>/<i>M</i><sub>2</sub>) + <i>a</i><sub>2</sub>(<i>M</i><sub>1</sub>/<i>M</i><sub>2</sub>)² =</span>{{ C('ks') }}</div>
+
+{% if modality == 'photon' %}
+<div class="wr i0"><span class="wl">(v)</span><span class="wl" style="margin-left:6px">Поправка на усреднение по объёму <i>k</i><sub>vol</sub> (Табл.11/ф.22 Rev.1):</span>
+  {{ Q('Применяется только для пучков без фильтра (FFF): kvol = 1 + (0,0062·TPR20,10 − 0,0036)·(100/SCD)²·L², SCD = SSD + zref; длина полости L берётся из справочника камеры. Для пучков с фильтром kvol = 1.') }}</div>
+<div class="wr i2"><span class="wl">SCD = SSD + <i>z</i><sub>ref</sub>, см:</span>{{ C('rid') }}<span class="sp"></span><span class="wl"><i>L</i>, см:</span>{{ C('L') }}<span class="wl"><i>k</i><sub>vol</sub> =</span>{{ C('kvol') }}</div>
+{% endif %}
+<div class="wr i0" style="margin-top:14px"><span class="wl">Скорректированные показания дозиметра при напряжении <i>V</i><sub>1</sub>:</span></div>
+<div class="wr i2"><span class="fm"><i>M</i><sub><i>Q</i></sub> = <i>M</i><sub>1</sub> <i>k</i><sub>TP</sub>{% if modality == 'electron' %} <i>h</i><sub>pl</sub>{% endif %} <i>k</i><sub>elec</sub> <i>k</i><sub>pol</sub> <i>k</i><sub>s</sub>{% if modality == 'photon' %} <i>k</i><sub>vol</sub>{% endif %} =</span>{{ C('mq') }}<span class="u">нКл / MU</span></div>
+
+<h2>{{ '4' if modality == 'photon' else '5' }}. Мощность поглощённой дозы {{ 'для воды ' if modality == 'photon' else 'в воде ' }}на референсной глубине, <i>z</i><sub>ref</sub></h2>
+<div class="wr"><span class="wl">Кор-ка кач. пучка на кач. пучка пользователя <i>Q</i>:</span><span class="fm"><i>k</i><sub><i>Q</i>,<i>Q</i><sub>0</sub></sub> =</span>{{ C('kq') }}
+  <span class="u">{{ ('Табл.16 Rev.1, линейная интерполяция по TPR20,10' if modality == 'photon' else 'Табл.20/21 Rev.1, сплайн по R50,w')|sym }}</span>
+  {{ Q('Определяется автоматически по Таблице TRS-398 Rev.1 для выбранной камеры; вне диапазона качества пучка таблицы расчёт не выполняется.') }}</div>
+<div class="wr"><span class="fm"><i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>ref</sub>) = <i>M</i><sub><i>Q</i></sub> <i>N</i><sub><i>D</i>,w,<i>Q</i><sub>0</sub></sub> <i>k</i><sub><i>Q</i>,<i>Q</i><sub>0</sub></sub> =</span>{{ C('dwref') }}<span class="u">Гр / MU</span></div>
+
+<h2>{{ '5' if modality == 'photon' else '6' }}. Мощность поглощённой дозы в воде на глубине максимума дозы, <i>z</i><sub>max</sub></h2>
+<div class="wr"><span class="wl">Глубина максимальной дозы:</span><span class="fm"><i>z</i><sub>max</sub> =</span><span class="c gr" id="e_zmax">—</span><span class="u">г см<sup>−2</sup></span>
+  {{ Q('Из глубинной дозы при SSD 100 см, поле 10 × 10. Задаётся в разделе «Оборудование» и на листе расчёта не меняется.') }}</div>
+<div class="wr"><span class="wl">{{ '(i) при геометрии SSD:' if modality == 'photon' else '' }} <i>PDD</i>(<i>z</i><sub>ref</sub>) =</span>{{ I('pdd_zref', '8ch') }}<span class="u">%</span>
+  {{ Q('Процентная глубинная доза на zref для референсного поля (аппликатора) при SSD 100 см. Dw(zmax) = 100·Dw(zref) / PDD(zref).') }}
+  <span class="sp"></span><span class="fm"><i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>max</sub>) = 100 <i>D</i><sub>w,<i>Q</i></sub>(<i>z</i><sub>ref</sub>) / <i>PDD</i>(<i>z</i><sub>ref</sub>) =</span>{{ C('dwmax') }}<span class="u">Гр / MU</span></div>
+{% if modality == 'photon' %}
+<div class="wr"><span class="wl">(ii) при геометрии SAD: <i>TMR</i>(<i>z</i><sub>ref</sub>) =</span>{{ I('tmr_zref', '8ch') }}
+  {{ Q('Отношение ткань–максимум на zref для поля 10 × 10. При геометрии SAD: Dw(zmax) = Dw(zref) / TMR(zref); вводите TMR, а PDD оставьте пустым. Не нужно, если для пучка в «Оборудовании» задана ожидаемая доза в опорной точке.') }}</div>
+<div class="wr" id="exp_row" style="display:none"><span class="wl">(iii) при SAD: ожидаемая доза в опорной точке (система планирования) =</span><span class="c gr" id="e_exp">—</span><span class="u">сГр / MU</span>
+  <span class="wl" style="margin-left:10px">на глубине</span><span class="c gr" id="e_expz">—</span><span class="u">г см<sup>−2</sup></span><span class="u" id="e_expsrc"></span>
+  {{ Q('При SAD доза определяется в опорной точке (изоцентр на опорной глубине) без пересчёта на zmax: отклонение считается от ожидаемой дозы системы планирования для тех же условий. Значение, глубина и источник задаются в «Оборудовании» и на листе не меняются. Тренды SAD ведутся отдельно для каждого набора условий.') }}</div>
+{% endif %}
+<div class="wr"><span class="wl" id="dev_label">Отклонение от 1 сГр/MU:</span>{{ C('dev') }}<span class="u">%</span>
+  <span class="sp"></span><span class="wl">Примечание:</span><input class="in t" name="note" value="{{ f.get('note', '') }}" style="width:300px" autocomplete="off"></div>
+<div class="info" style="margin:2px 0 0 0;text-align:right">{% if protocol_no %}Протокол № <b>{{ protocol_no }}</b>{% else %}№ протокола присваивается автоматически при сохранении (формат ГГГГ-NNNN).{% endif %}</div>
+
+<div id="resbar"><div id="result" class="muted">Заполните поля: итог появится здесь и в голубых ячейках.</div>
+<p style="margin:8px 0 0"><button class="primary">Сохранить как черновик</button> <a class="btn" href="/measurements">Отмена</a></p></div>
+</form>
+
+<script>
+(function () {
+  var hinted = new WeakMap();
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.q');
+    if (!b || !b.dataset.help) return;
+    e.preventDefault();
+    var row = b.closest('.wr') || b.parentElement, h = hinted.get(b);
+    if (h && h.parentNode) { h.remove(); b.classList.remove('on'); hinted.delete(b); return; }
+    h = document.createElement('div'); h.className = 'hint'; h.innerHTML = b.dataset.help;
+    row.insertAdjacentElement('afterend', h); hinted.set(b, h); b.classList.add('on');
+  });
+  function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v || '—'; }
+  function comma(x) { return (x || '').replace('.', ','); }
+  function box(id, on) { var el = document.getElementById(id); if (el) el.textContent = on ? '☑' : '☐'; }
+  var cal = document.getElementById('calibration_id');
+  function showCal() {
+    var o = cal && cal.options[cal.selectedIndex]; if (!o) return; var d = o.dataset;
+    setText('wall_m', d.wallm); setText('wall_t', comma(d.wallt)); setText('cal_nd', comma(d.nd)); var w = document.getElementById('cal_nd_warn'); if (w) w.textContent = d.ndwarn ? '⚠ ' + d.ndwarn : ''; setText('cal_q0', d.q0);
+    setText('cal_v1', d.v1); setText('cal_lab', d.lab); setText('cal_date', d.date + (d.valid ? ' (до ' + d.valid + ')' : ''));
+    setText('el_model', d.elmodel); setText('el_sn', d.elsn); setText('el_sep', d.sep === '1' ? '☑ да' : '☐ нет'); setText('el_range', d.elrange);
+    setText('e_r50q0', comma(d.r50q0)); setText('e_depth', comma(d.depth)); setText('e_p0', comma(d.p0)); setText('e_t0', comma(d.t0)); setText('e_rh', comma(d.rh));
+    box('pc_plus', (d.polcal || '').indexOf('+') >= 0); box('pc_minus', (d.polcal || '').indexOf('−') >= 0); box('pc_corr', d.polcorr === '1');
+    box('pu_plus', (d.poluser || '').indexOf('+') >= 0); box('pu_minus', (d.poluser || '').indexOf('−') >= 0);
+    setText('kelec_note', d.sep === '1' ? '(K из свидетельства, калибруется отдельно)' : '(= 1: не калибровался отдельно)');
+    var row = document.getElementById('kelec_row2'); if (row) row.style.display = d.sep === '1' ? '' : 'none';
+    setText('kelec_lab', d.keleclab); setText('kelec_date', d.keleldate);
+  }
+  if (cal) { cal.addEventListener('change', showCal); showCal(); }
+  var beam = document.getElementById('beam_id');
+  function showExpected(d) {        // SAD with an expected dose at the reference point: the deviation is taken from it
+    var row = document.getElementById('exp_row'); if (!row) return;
+    var sad = document.querySelector('input[name=geometry][value=SAD]'), on = !!d.expcgy && sad && sad.checked;
+    row.style.display = on ? '' : 'none';
+    setText('e_exp', comma(d.expcgy || '')); setText('e_expz', comma(d.expz || '10')); setText('e_expsrc', d.expsrc ? '(' + d.expsrc + ')' : '');
+    var lab = document.querySelector('#dev_label'); if (lab) lab.textContent = on ? 'Отклонение от ожидаемой дозы СП:' : 'Отклонение от 1 сГр/MU:';
+  }
+  var autoDepth = {};
+  function fillDepth(d) {               // PDD(zref) and TMR(zref) of the beam come from Equipment (a new sheet only; what the user typed is kept)
+    var f = document.querySelector('form.ws'); if (!f || f.dataset.new !== '1') return;
+    var zr = document.getElementById('zref');
+    if (zr && (zr.value === '' || zr.value === autoDepth.zref)) { zr.value = d.refdepth ? comma(d.refdepth) : ''; autoDepth.zref = zr.value; }     // the reference depth of the chamber
+    var z10 = !zr || (zr.value || '10').replace(',', '.') === '10';
+    [['pdd_zref', d.pddz], ['tmr_zref', d.tmrz], ['pdd10', z10 && d.fff !== undefined ? d.pddz : ''], ['mu', d.calmu]].forEach(function (p) {      // at zref = 10 g/cm2 PDD(10) of section 1 is the same number
+      var el = document.getElementById(p[0]); if (!el) return;
+      if (el.value === '' || el.value === autoDepth[p[0]]) {
+        el.value = p[1] ? comma(p[1]) : ''; autoDepth[p[0]] = el.value;
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+      }
+    });
+  }
+  function showBeam() {
+    var o = beam && beam.options[beam.selectedIndex]; if (!o) return; var d = o.dataset;
+    setText('linac_info', d.linac); setText('e_city', d.city); setText('e_rate', comma(d.rate)); setText('e_field', d.field);
+    setText('e_phantom', d.phantom); setText('e_winm', d.winm); setText('e_wint', comma(d.wint)); setText('e_plastic', d.phantom && d.phantom.toLowerCase().indexOf('вод') !== 0 ? d.phantom : ''); setText('e_cpl', comma(d.cpl) || '1'); setText('e_hpl', comma(d.hpl) || '1'); setText('e_zmax', comma(d.zmax));
+    var fff = d.fff === '1', p20 = document.getElementById('pdd20'), hf = document.getElementById('qhint_fff'), hl = document.getElementById('qhint_flt');
+    if (p20) { p20.disabled = fff; p20.placeholder = fff ? 'не нужно' : ''; p20.style.background = fff ? '#eee' : ''; }
+    if (hf) hf.style.display = fff ? '' : 'none'; if (hl) hl.style.display = fff ? 'none' : '';
+    fillDepth(d);
+    showExpected(d);
+    var rd = document.getElementById('e_refdepth'); if (rd) rd.textContent = d.refdepth ? '(в «Оборудовании»: ' + comma(d.refdepth) + ' г/см²)' : '';
+    setText('beam_filter', d.fff === '1' ? 'БВФ (без фильтра), ' + d.energy : 'СВФ (с фильтром), ' + d.energy);
+  }
+  function geometry() {
+    var sad = document.querySelector('input[name=geometry][value=SAD]'), pdd = document.getElementById('pdd_zref'), tmr = document.getElementById('tmr_zref');
+    if (!sad || !pdd || !tmr) return;
+    var isSad = sad.checked;
+    pdd.disabled = isSad; tmr.disabled = !isSad;
+    pdd.placeholder = isSad ? 'не нужно' : ''; tmr.placeholder = isSad ? '' : 'не нужно';
+    var o = beam && beam.options[beam.selectedIndex]; if (o) showExpected(o.dataset);
+  }
+  document.querySelectorAll('input[name=geometry]').forEach(function (r) { r.addEventListener('change', geometry); });
+  geometry();
+  var form = document.querySelector('form.ws');
+  var SAVED = ['tpr', 'pdd10', 'pdd20', 'r50', 'mu', 'm1', 'm1_v1', 'm_plus', 'm_minus', 'm2', 'v1', 'v2'];
+  var rh = document.getElementById('humidity'), rhWarn = document.getElementById('rh_warn');
+  function checkRh() {          // TRS-398: between 20 and 80 % the humidity needs no correction; outside it only a warning
+    if (!rh || !rhWarn) return;
+    var v = parseFloat((rh.value || '').replace(',', '.'));
+    rhWarn.textContent = (!isNaN(v) && (v < 20 || v > 80)) ? 'Вне диапазона 20–80 %: проверьте значение или условия измерения' : '';
+  }
+  if (rh) { rh.addEventListener('input', checkRh); checkRh(); }
+  function reference(force, source) {
+    var note = document.getElementById('refnote');
+    if (!beam || !cal || !beam.value || !cal.value) return;
+    fetch('/measurements/reference?beam_id=' + beam.value + '&calibration_id=' + cal.value + '&source=' + (source || 'auto'), {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.found) {
+          note.textContent = d.kind === 'saved' ? 'Для этого пучка и камеры опорные показания ещё не сохранены: введите значения и нажмите «Сделать эти значения опорными».'
+            : 'Для этого пучка ещё нет утверждённых измерений: введите показания (iii) и (iv), они станут опорными для следующих.';
+          return;
+        }
+        var changed = false;
+        SAVED.forEach(function (n) {
+          var el = form.querySelector('[name="' + n + '"]');
+          if (el && d[n] && (force || !el.value)) { el.value = d[n]; changed = true; }
+        });
+        var radio = form.querySelector('input[name="pulsed_scanned"][value="' + (d.pulsed_scanned ? '1' : '') + '"]');
+        if (radio && (force || changed)) radio.checked = true;
+        note.textContent = d.kind === 'saved' ? 'Подставлены опорные показания пучка и камеры (сохранены ' + d.date + ', ' + d.by + '). Любое значение можно изменить.'
+          : 'Подставлены первоначальные показания пучка (запись №' + d.record + ' от ' + d.date + '). Любое значение можно изменить.';
+        if (changed) form.querySelector('[name="m_plus"]').dispatchEvent(new Event('change', {bubbles: true}));
+      });
+  }
+  var refbtn = document.getElementById('refbtn');
+  if (refbtn) refbtn.addEventListener('click', function () { reference(true, 'first'); });
+  var refsaved = document.getElementById('refsaved');
+  if (refsaved) refsaved.addEventListener('click', function () { reference(true, 'saved'); });
+  var refsave = document.getElementById('refsave');
+  if (refsave) refsave.addEventListener('click', function () {
+    var note = document.getElementById('refnote');
+    if (!beam.value || !cal.value) return;
+    if (!confirm('Сделать значения этого листа (качество пучка, серия M и MU, показания (iii) и (iv)) опорными для выбранного пучка и камеры? Они будут подставляться в новые измерения.')) return;
+    var body = new URLSearchParams();
+    body.set('csrf', form.querySelector('[name="csrf"]').value); body.set('beam_id', beam.value); body.set('calibration_id', cal.value);
+    SAVED.concat(['pulsed_scanned']).forEach(function (n) {
+      var el = form.querySelector('[name="' + n + '"]');
+      if (n === 'pulsed_scanned') { var r = form.querySelector('input[name="pulsed_scanned"]:checked'); if (r && r.value) body.set(n, r.value); }
+      else if (el && !el.disabled && el.value) body.set(n, el.value);
+    });
+    fetch('/measurements/reference', {method: 'POST', credentials: 'same-origin', body: body}).then(function (r) {
+      return r.ok ? {ok: true} : r.text().then(function (t) { return {ok: false, text: t}; });
+    }).then(function (res) {
+      note.textContent = res.ok ? 'Опорные значения сохранены для выбранного пучка и камеры.' : 'Не сохранено: ' + res.text;
+    });
+  });
+  function onSelection() { if (form.dataset.new === '1') reference(false); }
+  if (beam) { beam.addEventListener('change', function () { showBeam(); onSelection(); }); showBeam(); }
+  if (cal) cal.addEventListener('change', onSelection);
+  onSelection();
+})();
+</script>
+{% endblock %}

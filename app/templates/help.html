@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Справка{% endblock %}
+{% block head %}<style>
+.guide{max-width:900px;margin:0 auto;line-height:1.6}
+.guide h1{font-size:24px}.guide h2{font-size:18px;margin:26px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.guide table{margin:10px 0}.guide code{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:13px}
+.guide pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto}.guide pre code{border:0;padding:0}
+</style>{% endblock %}
+{% block content %}<div class="card guide">{{ content|safe }}</div>{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Неопределённость{% endblock %}
+{% block head %}<script src="/static/plotly.min.js" charset="utf-8"></script>{% if lang == 'ru' %}<script src="/static/plotly-ru.js" charset="utf-8"></script>{% endif %}{% endblock %}
+{% macro months(v) %}{% if v is none %}—{% elif v is string %}{{ v }}{% else %}{{ '%.1f'|format(v) }} мес{% endif %}{% endmacro %}
+{% macro table(items, edit) %}
+<table><tr><th>Величина или процедура</th><th style="width:60px">Тип</th><th style="width:110px">Распределение</th><th style="width:170px"><i>u</i>, % (станд.)</th><th style="min-width:260px">Как определяется (формула)</th></tr>
+{% for c in items %}<tr><td>{{ c.name|sym }}{% if c.custom %} <span class="pill">добавлено</span>{% endif %}{% if c.note %}<div class="muted" style="font-size:12px">{{ c.note|sym }}</div>{% endif %}</td><td>{{ c.kind }}</td><td>{{ dist_names.get(c.dist, '—') }}</td>
+<td>{% if edit %}<input class="in" name="u_{{ c.code }}" value="{{ ('%.2f'|format(c.u_pct)).replace('.', ',') }}" size="5" inputmode="decimal" autocomplete="off"{% if c.default_u is not none %} style="background:#ffe3a3"{% endif %}><input type="hidden" name="d_{{ c.code }}" value="{{ '%.4f'|format(c.default_u if c.default_u is not none else c.u_pct) }}">
+  {% if c.custom %}<button class="danger" formaction="/uncertainty/extra/delete" name="code" value="{{ c.code }}" formnovalidate title="Убрать строку">×</button>{% endif %}
+  {% if c.default_u is not none %}<div class="muted" style="font-size:12px">по умолчанию {{ '%.2f'|format(c.default_u) }}</div>{% endif %}
+  {% else %}{{ '%.2f'|format(c.u_pct) }}{% if c.default_u is not none %} <span class="muted" style="font-size:12px">(по умолчанию {{ '%.2f'|format(c.default_u) }})</span>{% endif %}{% endif %}</td><td class="muted" style="font-size:12px">{{ c.how|sym if c.how else '—' }}</td></tr>{% endfor %}</table>
+{% endmacro %}
+{% block content %}
+<h1>Неопределённость и решение о перекалибровке</h1>
+<form method="get" class="card">
+  <div class="grid">
+    <div><label>Пучок</label><select name="beam_id" onchange="this.form.submit()"><option value="">Выберите пучок</option>
+      {% for b in beams %}<option value="{{ b.id }}" {{ 'selected' if beam and beam.id == b.id }}>{{ b.label }}</option>{% endfor %}</select></div>
+    {% if beam and beam.modality == 'electron' %}
+    <div><label>Камера</label><select name="chamber">{% for n in electron_chambers %}<option {{ 'selected' if form.chamber == n }}>{{ n }}</option>{% endfor %}</select></div>
+    <div><label>{% filter sym %}Калибровка (Q0){% endfilter %}</label><select name="q0"><option value="co60" {{ 'selected' if form.q0 == 'co60' }}>Co-60</option><option value="electron" {{ 'selected' if form.q0 == 'electron' }}>электронный пучок</option></select></div>
+    <div><label>{% filter sym %}R50 пучка, г/см²{% endfilter %}</label><input name="r50" value="{{ form.r50 }}"></div>
+    {% endif %}
+    {% if beam %}
+    <div><label>{% filter sym %}Допуск ±T, %{% endfilter %}</label><input name="tolerance" value="{{ form.tolerance }}"></div>
+    <div><label>Уровень наблюдения ±, %</label><input name="observe" value="{{ form.observe }}"></div>
+    <div><label>Интервал калибровок, мес</label><input name="interval" value="{{ form.interval }}"></div>
+    <div><label>Окно тренда, записей</label><input name="window" value="{{ form.window }}"></div>
+    <div><label>Дата последней юстировки</label><input type="date" name="last_cal" value="{{ form.last_cal }}"></div>
+    {% endif %}
+  </div>
+  {% if beam %}<p><button class="primary">Пересчитать</button></p>{% endif %}
+</form>
+
+{% if beam and budget %}
+<div class="card">
+  <div class="row" style="gap:28px">
+    <div><div class="muted">{% filter sym %}u1 (этап 1){% endfilter %}</div><div class="big">{{ '%.2f'|format(budget.u1) }} %</div></div>
+    <div><div class="muted">{% filter sym %}u2 (этап 2){% endfilter %}</div><div class="big">{{ '%.2f'|format(budget.u2) }} %</div></div>
+    <div><div class="muted">Тип A, σ журнала</div><div class="big">{{ '%.2f'|format(budget.sigma_a) + ' %' if budget.sigma_a else '—' }}</div></div>
+    <div><div class="muted">{% filter sym %}uc{% endfilter %}</div><div class="big">{{ '%.2f'|format(budget.uc) }} %</div></div>
+    <div><div class="muted">{% filter sym %}U (k = 2){% endfilter %}</div><div class="big">{{ '%.2f'|format(budget.expanded) }} %</div></div>
+  </div>
+  <p class="muted" style="font-size:13px">{% filter sym %}Справочно по TRS-398 (только тип B): uc ={% endfilter %} {{ '%.2f'|format(budget.u_type_b) }} %. {{ budget.title|sym }}.
+  {% if not budget.sigma_a %}Тип A не учтён: для пучка недостаточно утверждённых или импортированных записей (нужно не меньше двух).{% endif %}</p>
+</div>
+
+<div class="card"><h2>Вклад составляющих</h2>
+  <div id="pareto" style="height:{{ 90 + shares|length * 34 }}px"></div>
+  <noscript><p class="muted">Включите JavaScript, чтобы увидеть диаграмму. Таблица ниже содержит те же данные.</p></noscript>
+</div>
+
+{% set back = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+{% if can_edit_unc %}<form method="post" action="/uncertainty/settings">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="modality" value="{{ modality }}">{% endif %}
+<div class="card"><h2>{{ budget.stage1_title|sym }}</h2>{{ table(budget.stage1, can_edit_unc) }}</div>
+<div class="card"><h2>{{ budget.stage2_title|sym }}</h2>{{ table(budget.stage2, can_edit_unc) }}
+  {% if budget.sigma_a %}<p class="muted" style="margin-top:8px">Тип A (нормальное): экспериментальное σ = MR̄/1,128 по {{ n_points }} записям журнала: {{ '%.3f'|format(budget.sigma_a) }} %.</p>{% endif %}</div>
+<div class="card"><h2>Как получают стандартную неопределённость <i>u</i></h2>
+  <p class="muted" style="font-size:13px;margin:0 0 6px">Тип B берут из паспортных данных, допусков и свидетельств, форму распределения выбирают по тому, что известно об источнике. Формулы верны для любых энергий пучка; зависящие от энергии чувствительности cᵢ определяют для своего пучка.</p>
+  <table><tr><th style="width:170px">Распределение / тип</th><th>Когда применяют</th><th style="width:330px">Формула</th></tr>
+  {% for n, when, f in dist_formulas %}<tr><td>{{ n }}</td><td class="muted" style="font-size:13px">{{ when }}</td><td>{{ f }}</td></tr>{% endfor %}</table>
+  <p style="font-size:13px;margin:8px 0 2px"><b>Чувствительности для разных энергий</b></p>
+  <ul style="margin:0;padding-left:20px;font-size:13px">{% for k, t in dist_rules.items() %}<li>{{ t }}</li>{% endfor %}</ul>
+</div>
+
+{% if can_edit_unc %}<div class="card row" style="gap:12px">
+  <button class="primary">Сохранить значения</button>
+  <button formaction="/uncertainty/settings/reset" formnovalidate onclick="return confirm('Вернуть стандартные значения Типа B для этого типа пучка? Добавленные строки останутся.')">Вернуть значения по умолчанию</button>
+  <span class="muted" style="font-size:13px">Значения Типа B общие для всех пучков этого типа (фотоны / электроны) и входят в приложение к протоколу; изменённые отмечаются. Меняйте их под условия вашего учреждения и аккредитацию лаборатории (жёлтые ячейки листа). Изменения записываются в журнал аудита.</span>
+</div></form>
+
+<div class="card"><h2>Добавить свою строку</h2>
+  <form method="post" action="/uncertainty/extra" class="row" style="gap:10px;align-items:end">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="modality" value="{{ modality }}">
+    <div><label>Готовая строка из литературы</label>
+      <select id="preset"><option value="">— своя —</option>{% for n, st, ur, ut, src in presets %}<option data-name="{{ n }}" data-stage="{{ st }}" data-ref="{{ ur }}" data-typ="{{ ut }}" data-src="{{ lit_sources[src] }}" data-dist="{{ preset_dist.get(n, ('', ''))[0] }}" data-how="{{ preset_dist.get(n, ('', ''))[1] }}">{{ n }}</option>{% endfor %}</select></div>
+    <div><label>Условия</label><select id="level"><option value="ref">оборудование эталонного класса</option><option value="typ">типичные условия</option></select></div>
+    <div><label>Распределение</label><select name="dist" id="xdist"><option value="">—</option>{% for k, n in dist_names.items() %}<option value="{{ k }}">{{ n }}</option>{% endfor %}</select></div>
+    <div><label>Параметр: a, σ или U</label><input id="xparam" size="6" inputmode="decimal" placeholder="a / σ / U"></div>
+    <div><label>k (для U)</label><input id="xk" size="3" value="2" inputmode="decimal"></div>
+    <div><label>Чувствительность c, %/ед.</label><input id="xc" size="6" value="1" inputmode="decimal"></div>
+    <div><label>Этап</label><select name="stage" id="stage"><option value="1">1 (лаборатория)</option><option value="2" selected>2 (пучок пользователя)</option></select></div>
+    <div style="flex:1;min-width:260px"><label>Название</label><input name="name" id="xname" required minlength="3" style="width:100%"></div>
+    <div><label><i>u</i>, %</label><input name="u_new" id="xu" size="6" required inputmode="decimal"></div>
+    <div style="flex:1;min-width:200px"><label>Примечание / источник</label><input name="note" id="xnote" style="width:100%"></div>
+    <div style="flex:1;min-width:260px"><label>Как определено (формула)</label><input name="how" id="xhow" maxlength="400" style="width:100%"></div>
+    <button class="primary">Добавить</button>
+  </form>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Добавленная строка входит в сумму в квадратуре на выбранном этапе. Стандартные строки таблицы уже объединяют часть этих эффектов
+  («Установление стандартных условий», «Поправка на влияющие величины»): добавляя отдельную строку, уменьшите соответствующее стандартное значение, чтобы не учесть эффект дважды.</p>
+</div>
+<script>
+(function () {
+  var preset = document.getElementById('preset'), level = document.getElementById('level');
+  function fill() {
+    var o = preset.options[preset.selectedIndex]; if (!o || !o.dataset.name) return;
+    document.getElementById('xname').value = o.dataset.name;
+    document.getElementById('stage').value = o.dataset.stage;
+    document.getElementById('xu').value = (level.value === 'ref' ? o.dataset.ref : o.dataset.typ).replace('.', ',');
+    document.getElementById('xnote').value = o.dataset.src;
+    document.getElementById('xdist').value = o.dataset.dist || '';
+    document.getElementById('xhow').value = o.dataset.how || '';
+  }
+  preset.addEventListener('change', fill); level.addEventListener('change', fill);
+  // calculator: u = c * u(x), u(x) = a/sqrt(3) (uniform), a/sqrt(6) (triangular), a/sqrt(2) (U-shaped), U/k or sigma (normal)
+  function num(id) { return parseFloat((document.getElementById(id).value || '').replace(',', '.')); }
+  function calc() {
+    var d = document.getElementById('xdist').value, a = num('xparam'), k = num('xk') || 1, c = num('xc');
+    if (!d || !(a >= 0) || !(c >= 0)) return;
+    var ux = d === 'uniform' ? a / Math.sqrt(3) : d === 'triangular' ? a / Math.sqrt(6) : d === 'ushaped' ? a / Math.SQRT2 : a / k;
+    document.getElementById('xu').value = (c * ux).toFixed(3).replace('.', ',');
+  }
+  ['xdist', 'xparam', 'xk', 'xc'].forEach(function (id) { document.getElementById(id).addEventListener('input', calc); });
+})();
+</script>
+{% endif %}
+
+<div class="card"><h2>Сравнение с литературой</h2>
+  <p class="muted" style="font-size:13px">Опубликованные бюджеты неопределённости клинической референсной дозиметрии (относительные стандартные неопределённости, %, k = 1). Протоколы и набор составляющих отличаются от таблиц МАГАТЭ в листах, поэтому сравнение приблизительное; перед использованием проверьте число по статье.</p>
+  <div><table class="sortable">
+    <tr><th>Составляющая</th><th>TG-51 Addendum (i): эталонный класс</th><th>TG-51 Addendum (ii): типичные условия</th><th>McDermott 2024: 6 MV</th><th>McDermott 2024: 6 MeV</th></tr>
+    {% for q, a, b, c, d in literature %}<tr><td>{{ q|sym }}</td><td>{{ a }}</td><td>{{ b }}</td><td>{{ c }}</td><td>{{ d }}</td></tr>{% endfor %}
+    <tr><td><b>Эта программа: суммарная <i>u</i><sub>c</sub> (Тип B, без Типа A)</b></td><td colspan="4">{{ '%.2f'|format(budget.u_type_b) }} (сейчас), с Типом A: {{ '%.2f'|format(budget.uc) }}</td></tr>
+  </table></div>
+  <h3 style="margin:14px 0 4px;font-size:15px">Распределения входных величин в работе McDermott 2024 (k = 1)</h3>
+  <table class="sortable"><tr><th>Составляющая</th><th>Распределение и параметры</th><th>6 MV, %</th><th>6 МэВ, %</th></tr>
+  {% for n, d, a, b in lit_dist %}<tr><td>{{ n|sym }}</td><td>{{ d }}</td><td>{{ a }}</td><td>{{ b }}</td></tr>{% endfor %}</table>
+  <p class="muted" style="font-size:12px;margin:4px 0 8px">Метод: Монте-Карло, прямоугольные входы σ = (x₊ − x₋) / (2√3), для нормальных берут 1σ из источника или половину значения при k = 2. Для 18 MV суммарная неопределённость 1,16 %, для 18 МэВ 95 % ДИ ±2,4 %; по остальным энергиям составляющие в работе не даны.</p>
+  <p class="muted" style="font-size:12px;margin-bottom:0">Источники: {{ lit_sources.tg51 }}; {{ lit_sources.mcd }}. Консенсусные kQ для фотонов (обновление TRS-398): суммарная стандартная неопределённость kQ 0,6 %.</p>
+</div>
+
+<div class="card"><h2>Решение о перекалибровке</h2>
+  <p class="muted" style="font-size:13px">{% filter sym %}U показывает, насколько точно известна{% endfilter %} <b>абсолютная</b> {% filter sym %}доза; это не допуск на дрейф. Дрейф оценивается относительно собственной базовой линии:
+  U{% endfilter %}<sub>отн</sub> {% filter sym %}= 2·√2·σ(Тип A) (систематические составляющие ND,w и kQ при этом сокращаются).{% endfilter %}</p>
+  {% if advice.verdict == 'нет данных' %}<p class="muted">Нет данных для оценки.</p>{% else %}
+  <table>
+    <tr><td>Последнее отклонение</td><td>{{ '%+.2f'|format(advice.last_deviation) }} %</td></tr>
+    <tr><td>U<sub>отн</sub> {% filter sym %}(k = 2){% endfilter %}</td><td>{{ '%.2f'|format(advice.u_rel) + ' %' if advice.u_rel else '—' }}</td></tr>
+    <tr><td>Вердикт</td><td><b class="{{ 'err' if advice.verdict.startswith('ДЕЙ') else 'warn' if advice.verdict[0] in 'ПН' and advice.verdict != 'норма' else 'ok' }}">{{ advice.verdict }}</b></td></tr>
+    <tr><td>Тренд по последним записям</td><td>{{ '%+.3f'|format(advice.trend_pct_per_month) + ' %/мес' if advice.trend_pct_per_month is not none else 'нет данных' }}</td></tr>
+    <tr><td>До уровня наблюдения</td><td>{{ months(advice.months_to_observe) }}</td></tr>
+    <tr><td>До допуска ±{{ form.tolerance }} % (линия тренда)</td><td>{{ months(advice.months_to_tolerance) }}</td></tr>
+    <tr><td>{% filter sym %}До допуска с запасом T − 2σ{% endfilter %}</td><td>{{ months(advice.months_to_margin) }}</td></tr>
+    <tr><td>Плановая дата (по интервалу)</td><td>{{ advice.planned_date.strftime('%d.%m.%Y') if advice.planned_date else '—' }}</td></tr>
+    <tr><td>{% filter sym %}Дата по тренду (T − 2σ){% endfilter %}</td><td>{{ advice.trend_date.strftime('%d.%m.%Y') if advice.trend_date else '—' }}</td></tr>
+    <tr><td>Рекомендуемая дата</td><td>{{ advice.recommended_date.strftime('%d.%m.%Y') if advice.recommended_date else '—' }}</td></tr>
+    <tr><td>Рекомендация</td><td><b>{{ advice.recommendation|sym }}</b></td></tr>
+  </table>
+  <p class="muted" style="font-size:12px;margin-top:8px">Тренд — линейная аппроксимация последних записей; он надёжен на участке без юстировок выхода и при 6–8 записях и более. После юстировки укажите её дату. Подсказка вспомогательная; решение принимает ответственный медицинский физик.</p>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  var d = {{ plot|tojson }};
+  if (!window.Plotly || !document.getElementById('pareto')) return;
+  var colors = d.kinds.map(function (k) { return k === 'A' ? '#b07000' : '#2a5db0'; });
+  Plotly.newPlot('pareto', [{
+    type: 'bar', orientation: 'h', x: d.share, y: d.names, marker: {color: colors},
+    customdata: d.u, texttemplate: '%{x:.1f} %', textposition: 'outside',      // numbers are formatted by the chart locale: a comma on Russian pages
+    hovertemplate: '%{y}<br><i>u</i> = %{customdata:.2f} %<br>вклад %{x:.1f} % от <i>u</i><sub>c</sub>²<extra></extra>'
+  }], {margin: {l: 330, r: 40, t: 10, b: 40}, xaxis: {title: 'вклад в <i>u</i><sub>c</sub>², %', range: [0, Math.max.apply(null, d.share) * 1.2]},
+       yaxis: {automargin: true}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'},
+       {displaylogo: false, responsive: true});
+})();
+</script>
+{% endif %}
+{% endblock %}

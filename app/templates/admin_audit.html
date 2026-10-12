@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Аудит{% endblock %}
+{% block content %}
+<h1>Журнал аудита</h1>
+<p class="muted">Только добавление: записи нельзя изменить или удалить, в том числе при очистке базы. Показаны последние 300.</p>
+<div class="card"><table class="sortable">
+  <tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Детали</th></tr>
+  {% for a in rows %}<tr><td>{{ a.at.strftime('%d.%m.%Y %H:%M:%S') }}</td><td>{{ a.login or '—' }}</td><td>{{ a.action }}</td><td>{{ a.entity }}{% if a.entity_id %} {{ a.entity_id }}{% endif %}</td><td class="muted">{{ a.details if a.details else '' }}</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Сравнение энергий{% endblock %}
+{% block head %}<script src="/static/plotly.min.js" charset="utf-8"></script>{% if lang == 'ru' %}<script src="/static/plotly-ru.js" charset="utf-8"></script>{% endif %}{% endblock %}
+{% block content %}
+<h1>Сравнение энергий одного аппарата</h1>
+<form method="get" class="card">
+  <div class="row">
+    <label style="margin:0">Аппарат</label>
+    <select name="linac_id" onchange="this.form.submit()">{% for l in linacs %}<option value="{{ l.id }}" {{ 'selected' if linac and linac.id == l.id }}>{{ l.name }}{% if l.n_beams %} ({{ l.n_beams }} пучков с данными){% endif %}</option>{% endfor %}</select>
+    <label style="margin:0 0 0 12px">Тип</label>
+    <select name="modality" onchange="this.form.submit()">{% for k, v in modalities.items() %}<option value="{{ k }}" {{ 'selected' if modality == k }}>{{ v }}</option>{% endfor %}</select>
+    <label style="margin:0 0 0 12px">Период</label>
+    <select name="months" onchange="this.form.submit()">{% for k, v in periods.items() %}<option value="{{ k }}" {{ 'selected' if months == k }}>{{ v }}</option>{% endfor %}</select>
+    <button>Показать</button>
+  </div>
+</form>
+
+{% if not summaries %}
+<div class="card muted">Для выбранного аппарата и периода нет утверждённых данных.</div>
+{% else %}
+<div class="card"><h2>Состояние каждой энергии</h2>
+  <table class="sortable" data-filters><tr><th>Тип</th><th>Пучок</th><th>Записей</th><th>Последняя</th><th>Откл., %</th><th>Среднее, %</th><th>σ, %</th><th>Тренд, %/мес</th><th>Статус</th><th>За 3σ</th><th>Другие правила</th><th>CUSUM</th><th>Вне допуска</th><th>Последний сигнал</th></tr>
+  {% for r in summaries %}<tr>
+    <td>{{ r.label.split(' ', 1)[0] }}</td><td>{{ r.label.split(' ', 1)[1] }}</td><td>{{ r.n }}</td><td data-sort="{{ r.last_date.strftime('%d.%m.%Y') if r.last_date else '' }}">{{ r.last_date.strftime('%d.%m.%Y') if r.last_date else '—' }}</td>
+    <td data-sort="{{ r.last if r.last is not none else '' }}">{{ r.last|signed(2) }}</td><td data-sort="{{ r.mean if r.mean is not none else '' }}">{{ r.mean|signed(2) }}</td>
+    <td>{{ '%.2f'|format(r.sigma) if r.sigma else '—' }}</td><td data-sort="{{ r.trend if r.trend is not none else '' }}">{{ r.trend|signed(3) }}</td>
+    <td class="{{ 'ok' if r.status == 'норма' else 'warn' if r.status.startswith('наб') else 'err' }}">{{ r.status.split(':')[0] }}</td>
+    <td>{{ r.n_3sigma or '' }}</td><td>{{ r.n_rules or '' }}</td><td>{{ r.n_cusum or '' }}</td><td class="{{ 'err' if r.out_of_tolerance }}">{{ r.out_of_tolerance or '' }}</td>
+    <td>{{ r.last_signal.strftime('%d.%m.%Y') if r.last_signal else '' }}</td>
+  </tr>{% endfor %}</table>
+  <p class="muted" style="font-size:12px;margin:6px 0 0">Статус по последнему отклонению: «наблюдение» при |откл.| &gt; 1 %, «ДЕЙСТВИЕ» при &gt; 2 %. Правила SPC и CUSUM как на странице «Тренды». Клик по заголовку сортирует.</p>
+</div>
+
+<div class="card"><h2>Что показывает сравнение</h2>
+  {% for h in hints %}<p style="margin:4px 0">{{ h }}</p>{% endfor %}
+  {% if flagged %}<table class="sortable" style="margin-top:8px"><tr><th>Месяц</th><th>Энергий</th><th>Вверх</th><th>Вниз</th><th>Среднее, %</th><th>Разброс, %</th><th>Направление</th></tr>
+  {% for c in flagged %}<tr><td>{{ c.month }}</td><td>{{ c.n }}</td><td>{{ c.up }}</td><td>{{ c.down }}</td><td>{{ '%+.2f'|format(c.mean) }}</td><td>{{ '%.2f'|format(c.spread) }}</td><td>{{ c.direction }}</td></tr>{% endfor %}</table>
+  <p class="muted" style="font-size:12px;margin:6px 0 0">Общий сдвиг: в этом месяце не менее {{ min_beams }} энергий с данными, и не менее 70 % из них отклонились одновременно в одну сторону не меньше чем на {{ shift }} %.</p>{% endif %}
+</div>
+
+<div class="card"><h2>Все энергии на одном графике</h2><div id="overlay" style="height:430px"></div>
+  <p class="muted" style="font-size:12px;margin:4px 0 0">Щёлкните по названию энергии в легенде, чтобы скрыть или показать ряд; двойной щелчок оставляет один. Серая линия — среднее по энергиям в месяц.</p>
+  <p class="muted" style="font-size:12px;margin:2px 0 0">Графики показывают энергии, оставшиеся в таблице «Состояние каждой энергии» после фильтров (серая линия — среднее по всем энергиям, показывается без фильтров).</p></div>
+<div class="card"><h2>Карта «энергия × месяц»</h2><div id="heat" style="height:{{ 120 + summaries|length * 34 }}px"></div>
+  <p class="muted" style="font-size:12px;margin:4px 0 0">Синий — выход ниже номинала, красный — выше. Вертикальная полоса одного цвета во всех строках — общее событие для всех энергий; одна цветная ячейка — отдельная энергия.</p></div>
+{% if corr_labels|length > 1 %}<div class="card"><h2>Согласованность энергий (корреляция)</h2><div id="corr" style="height:{{ 140 + corr_labels|length * 40 }}px"></div>
+  <p class="muted" style="font-size:12px;margin:4px 0 0">Коэффициент корреляции месячных отклонений: близко к 1 — энергии движутся вместе (общая причина), около 0 — независимо. Пусто, если общих месяцев меньше 6.</p></div>{% endif %}
+
+<script>
+(function () {
+  if (!window.Plotly) return;
+  var d = {{ plot|tojson }};
+  var cfg = {displaylogo: false, responsive: true};
+  var lay = {paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'};
+  var traces = d.series.map(function (s) {
+    return {x: s.x, y: s.y, mode: 'lines+markers', name: s.label, marker: {size: 5}, line: {width: 1.3},
+            hovertemplate: s.label + '<br>%{x|%d.%m.%Y}: %{y:+.2f} %<extra></extra>'};
+  });
+  traces.push({x: d.common.x, y: d.common.y, mode: 'lines', name: 'среднее по энергиям', line: {color: '#888', width: 3, dash: 'dot'},
+               hovertemplate: 'среднее: %{y:+.2f} %<extra></extra>'});
+  var xs = d.common.x.length ? [d.common.x[0], d.common.x[d.common.x.length - 1]] : [];
+  [[2, '#1d7a46'], [-2, '#1d7a46'], [1, '#b07000'], [-1, '#b07000']].forEach(function (b) {
+    traces.push({x: xs, y: [b[0], b[0]], mode: 'lines', showlegend: false, hoverinfo: 'skip', line: {color: b[1], width: 1, dash: 'dash'}});
+  });
+  Plotly.newPlot('overlay', traces, Object.assign({margin: {l: 55, r: 20, t: 10, b: 40}, yaxis: {title: 'отклонение, %', zeroline: true},
+    legend: {orientation: 'h', y: -0.15}}, lay), cfg);
+  Plotly.newPlot('heat', [{type: 'heatmap', x: d.months, y: d.labels, z: d.matrix, zmin: -2.5, zmax: 2.5, colorscale: 'RdBu', reversescale: true,
+    xgap: 1, ygap: 1, hoverongaps: false, colorbar: {title: '%'},
+    hovertemplate: '%{y}<br>%{x}: %{z:+.2f} %<extra></extra>'}],
+    Object.assign({margin: {l: 130, r: 20, t: 10, b: 60}, xaxis: {type: 'category', tickangle: -60}, yaxis: {autorange: 'reversed'}}, lay), cfg);
+  if (document.getElementById('corr') && d.corr_labels.length > 1) {
+    Plotly.newPlot('corr', [{type: 'heatmap', x: d.corr_labels, y: d.corr_labels, z: d.corr, zmin: -1, zmax: 1, colorscale: 'RdBu', reversescale: true,
+      xgap: 2, ygap: 2, hoverongaps: false, texttemplate: '%{z:.2f}', hovertemplate: '%{y} / %{x}: %{z:.2f}<extra></extra>'}],
+      Object.assign({margin: {l: 130, r: 20, t: 10, b: 90}, yaxis: {autorange: 'reversed'}, xaxis: {tickangle: -45}}, lay), cfg);
+  }
+
+  // the charts follow the filters of the table "Состояние каждой энергии": only the energies left in the table are drawn
+  var table = document.querySelector('table.sortable');
+  var heatBase = {labels: d.labels, matrix: d.matrix}, nSeries = d.series.length;
+  function rowLabel(r) { return r.cells[0].innerText.trim() + ' ' + r.cells[1].innerText.trim(); }
+  table.addEventListener('trs-filter', function (e) {
+    var keep = e.detail.rows.map(rowLabel), active = e.detail.active;
+    var visible = d.series.map(function (s) { return !active || keep.indexOf(s.label) >= 0; });
+    var idx = visible.map(function (v, i) { return i; });
+    Plotly.restyle('overlay', {visible: visible}, idx);
+    Plotly.restyle('overlay', {visible: !active}, [nSeries]);                       // the mean of all energies only makes sense for all of them
+    var rows = d.labels.map(function (l, i) { return i; }).filter(function (i) { return !active || keep.indexOf(d.labels[i]) >= 0; });
+    var heat = document.getElementById('heat');
+    heat.style.height = (120 + Math.max(rows.length, 1) * 34) + 'px';
+    Plotly.react('heat', [{type: 'heatmap', x: d.months, y: rows.map(function (i) { return d.labels[i]; }), z: rows.map(function (i) { return d.matrix[i]; }),
+      zmin: -2.5, zmax: 2.5, colorscale: 'RdBu', reversescale: true, xgap: 1, ygap: 1, hoverongaps: false, colorbar: {title: '%'},
+      hovertemplate: '%{y}<br>%{x}: %{z:+.2f} %<extra></extra>'}],
+      Object.assign({margin: {l: 130, r: 20, t: 10, b: 60}, xaxis: {type: 'category', tickangle: -60}, yaxis: {autorange: 'reversed'}}, lay), cfg);
+    Plotly.Plots.resize(heat);
+    var corr = document.getElementById('corr');
+    if (corr) {
+      var ci = d.corr_labels.map(function (l, i) { return i; }).filter(function (i) { return !active || keep.indexOf(d.corr_labels[i]) >= 0; });
+      var card = corr.parentNode; card.style.display = ci.length > 1 ? '' : 'none';
+      if (ci.length > 1) {
+        var names = ci.map(function (i) { return d.corr_labels[i]; });
+        corr.style.height = (140 + ci.length * 40) + 'px';
+        Plotly.react('corr', [{type: 'heatmap', x: names, y: names, z: ci.map(function (i) { return ci.map(function (j) { return d.corr[i][j]; }); }),
+          zmin: -1, zmax: 1, colorscale: 'RdBu', reversescale: true, xgap: 2, ygap: 2, hoverongaps: false,
+          texttemplate: '%{z:.2f}',
+          hovertemplate: '%{y} / %{x}: %{z:.2f}<extra></extra>'}],
+          Object.assign({margin: {l: 130, r: 20, t: 10, b: 90}, yaxis: {autorange: 'reversed'}, xaxis: {tickangle: -45}}, lay), cfg);
+        Plotly.Plots.resize(corr);
+      }
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

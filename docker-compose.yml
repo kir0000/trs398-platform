@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:17
+    container_name: trs398_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trs398
+      POSTGRES_USER: trs_owner
+      POSTGRES_PASSWORD: ${TRS_OWNER_PASSWORD}
+      TRS_APP_PASSWORD: ${TRS_APP_PASSWORD}
+      TRS_READONLY_PASSWORD: ${TRS_READONLY_PASSWORD}
+    ports:
+      - "127.0.0.1:5433:5432"   # localhost only
+    volumes:
+      - trs398_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trs_owner -d trs398"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    image: ${TRS_IMAGE:-ghcr.io/kir0000/trs398-platform}:${TRS_VERSION:-latest}
+    build:
+      context: .
+      args:
+        APP_VERSION: ${TRS_VERSION:-dev}
+    container_name: trs398_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://trs_app:${TRS_APP_PASSWORD}@db:5432/trs398
+      SESSION_SECRET: ${SESSION_SECRET}
+      BOOTSTRAP_ADMIN_LOGIN: ${BOOTSTRAP_ADMIN_LOGIN:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      HTTPS_ONLY: ${HTTPS_ONLY:-}
+      TRS_LANG: ${TRS_LANG:-ru}
+    volumes:
+      - ./backups:/backups:ro
+      - ./backups/requests:/backups/requests      # the only writable part: the app drops a "backup now" request here
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8000}:8000"   # this computer only; lan-on.bat sets APP_BIND=0.0.0.0 for the local network
+
+  backup:
+    image: postgres:17
+    container_name: trs398_backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${TRS_OWNER_PASSWORD}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+      BACKUP_HOUR: ${BACKUP_HOUR:-02}
+    volumes:
+      - ./backups:/backups
+      - ./db/backup.sh:/backup.sh:ro
+      - ./db/restore.sh:/restore.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+
+  # Optional encrypted access for the local network (docker compose --profile https up -d):
+  # put cert.pem and key.pem (a certificate for the name or address people type in the browser) into ./certs
+  https:
+    profiles: ["https"]
+    image: caddy:2-alpine
+    container_name: trs398_https
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTPS_BIND:-0.0.0.0}:${HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./db/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+
+volumes:
+  trs398_pgdata:

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Оборудование{% endblock %}
+{% block head %}<style>
+.eqhead{position:sticky;top:var(--hdr,56px);z-index:40;background:var(--bg);padding-top:6px;margin-bottom:10px}
+.eqhead h1{margin:0 0 4px}
+.eqhead p{margin:0 0 8px}
+.eqtabs{display:flex;gap:4px;margin:0;border-bottom:2px solid var(--line)}
+.eqtabs a{text-decoration:none}
+table.compact th{position:sticky;top:calc(var(--hdr,56px) + var(--eqhead,0px));background:var(--card);z-index:20}
+.eqlayout aside{position:sticky;top:calc(var(--hdr,56px) + var(--eqhead,0px) + 8px)}
+.dirty{border-color:var(--warn)!important;box-shadow:0 3px 0 -1px var(--warn);background:color-mix(in srgb,var(--warn) 10%,var(--card))!important}
+button.dirty-btn{border-color:var(--accent);background:var(--accent);color:#fff}
+#eq_dirty{display:none;position:sticky;bottom:0;z-index:45;background:color-mix(in srgb,var(--warn) 18%,var(--card));border:1px solid var(--warn);border-radius:8px;padding:8px 12px;margin:10px 0}
+tr.saved>td{background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.eqnote{border:1px solid var(--ok);color:var(--ok);border-radius:8px;padding:6px 12px;margin:0 0 10px}
+tr[id]{scroll-margin-top:200px}
+details.more{display:inline-block;margin-left:4px;position:relative}
+details.more>summary{cursor:pointer;list-style:none;padding:2px 8px;border:1px solid var(--line);border-radius:6px}
+.morebox{position:absolute;right:0;z-index:60;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;min-width:260px;box-shadow:0 4px 14px rgba(0,0,0,.15);white-space:normal}
+.morebox form{margin:0 0 6px}
+.eqtabs a{padding:8px 16px;border-radius:8px 8px 0 0;color:var(--text);font-weight:600}
+.eqtabs a:hover{background:var(--bg)}
+.eqtabs a.on{background:var(--card);color:var(--accent);border:1px solid var(--line);border-bottom:2px solid var(--card);margin-bottom:-2px}
+.eqlayout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start}
+.eqlayout section{min-width:0}
+@media (max-width:900px){.eqlayout{grid-template-columns:1fr}}
+.eqside a.linac{display:block;padding:8px 10px;border-radius:8px;color:var(--text);border:1px solid transparent}
+.eqside a.linac:hover{background:var(--bg)}
+.eqside a.linac.on{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--accent);font-weight:600}
+.eqside .sub{font-size:12px;color:var(--muted);font-weight:400}
+.badge{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;border:1px solid var(--line);max-width:170px;line-height:1.3}
+.badge.ok{color:var(--ok);border-color:var(--ok)}.badge.warn{color:var(--warn);border-color:var(--warn)}.badge.bad{color:var(--bad);border-color:var(--bad)}
+tr.sub td{border-top:0;padding-top:0}
+tr.sub details{margin:0 0 6px 0}tr.sub summary{cursor:pointer;color:var(--muted);font-size:13px}
+.eqgrid{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:end;margin:6px 0}
+.eqgrid label{display:block;font-size:12px;color:var(--muted);margin:0 0 2px}
+</style>{% endblock %}
+{% block content %}
+<div class="eqhead" id="eqhead">
+<h1>Оборудование</h1>
+<p class="muted">Параметры разделов 1–3 листа расчёта задаются здесь один раз: аппарат и пучок, камера и калибровка, электрометр. На листе расчёта они только отображаются.
+{% if user.role != 'admin' %}Изменять оборудование может администратор.{% endif %}</p>
+<nav class="eqtabs">
+  <a href="/equipment?tab=beams" class="{{ 'on' if tab == 'beams' }}">Аппараты и пучки</a>
+  <a href="/equipment?tab=dosimeters" class="{{ 'on' if tab == 'dosimeters' }}">Дозиметры</a>
+  <a href="/equipment?tab=reference" class="{{ 'on' if tab == 'reference' }}">Опорные значения</a>
+</nav>
+</div>
+{% if saved %}<div class="eqnote">✓ Сохранено</div>{% endif %}
+<script>(function () { var h = document.getElementById('eqhead'); function set() { document.documentElement.style.setProperty('--eqhead', h.offsetHeight + 'px'); } set(); window.addEventListener('resize', set); })();</script>
+{% set ro = user.role != 'admin' %}
+{{ fdatalists() }}
+{% if tab == 'beams' %}{% include "_eq_beams.html" %}
+{% elif tab == 'dosimeters' %}{% include "_eq_dosimeters.html" %}
+{% else %}{% include "_eq_reference.html" %}{% endif %}
+{% endblock %}

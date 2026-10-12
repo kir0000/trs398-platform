@@ -1,0 +1,168 @@
+{% macro beam_more(b, back) %}
+<details class="more"><summary title="Архив и удаление">⋯</summary>
+  <div class="morebox">
+    {% if not b.archived %}<form method="post" action="/equipment/beam/{{ b.id }}/archive" class="inline" onsubmit="return confirm('Отправить пучок в архив? Он исчезнет из выбора нового измерения, записи и тренды останутся.')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><button>В архив</button></form>
+    {% else %}<form method="post" action="/equipment/beam/{{ b.id }}/archive" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="archived" value="0"><button>Вернуть из архива</button></form>{% endif %}
+    {% if b.records.sessions or b.records.legacy %}
+      {% if not b.records.locked %}
+      <form method="post" action="/equipment/beam/{{ b.id }}/purge" onsubmit="return confirm('Удалить пучок вместе с черновиками ({{ b.records.sessions }})? Действие нельзя отменить.')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}">
+        {% if b.records.legacy %}<label style="display:block;margin:4px 0"><input type="checkbox" name="with_legacy" value="1"> и импортированные записи журнала ({{ b.records.legacy }})</label>{% endif %}
+        <button class="danger">Удалить пучок и его черновики</button></form>
+      {% else %}<p class="muted" style="font-size:12px;margin:6px 0 0">Есть утверждённые, замещённые или аннулированные записи ({{ b.records.locked }}): это история, удалять её нельзя. Пучок можно только отправить в архив.</p>{% endif %}
+    {% endif %}
+  </div></details>
+{% endmacro %}
+<div class="eqlayout">
+  <aside class="eqside card"><h2 style="margin-top:0">Аппараты</h2>
+    {% for l in linacs %}<a class="linac {{ 'on' if current and l.id == current.id }}" href="/equipment?tab=beams&linac={{ l.id }}">{{ l.name }}
+      <div class="sub">{{ l.model or '—' }}{% if l.serial_no %}, SN {{ l.serial_no }}{% endif %} · пучков {{ l.n_beams }}{% if l.incomplete %} · <span class="err">не готово: {{ l.incomplete }}</span>{% endif %}</div></a>
+    {% else %}<p class="muted">Аппаратов пока нет.</p>{% endfor %}
+    {% if not ro %}<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:600">Добавить аппарат</summary>
+      <form method="post" action="/equipment/linac" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/equipment?tab=beams">
+        <input name="name" placeholder="Название аппарата" required style="width:100%;margin-bottom:6px" {{ fa('name') }}><input name="model" placeholder="Модель" style="width:100%;margin-bottom:6px" {{ fa('model') }}>
+        <input name="serial_no" placeholder="Серийный №" style="width:100%;margin-bottom:6px" {{ fa('serial_no') }}><input name="city" placeholder="Город, страна" style="width:100%;margin-bottom:6px" {{ fa('city') }}>
+        <input name="site" placeholder="Отделение (необязательно)" style="width:100%;margin-bottom:6px" {{ fa('site') }}><button>Добавить аппарат</button></form>
+      <p class="muted" style="font-size:12px">Аппарат «Не указан (импорт)» появился при импорте старых журналов: просто переименуйте его в настоящее название.</p></details>{% endif %}
+  </aside>
+
+  <section>
+  {% if current %}
+  {% set back = '/equipment?tab=beams&linac=' ~ current.id %}
+  <div class="card"><h2 style="margin-top:0">{{ current.name }}</h2>
+    <form id="lin{{ current.id }}" method="post" action="/equipment/linac/{{ current.id }}/rename"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}">
+      <div class="eqgrid">
+        <div><label>Название</label><input name="name" value="{{ current.name }}" required {{ 'disabled' if ro }} {{ fa('name') }}></div>
+        <div><label>Модель</label><input name="model" value="{{ current.model or '' }}" {{ 'disabled' if ro }} {{ fa('model') }}></div>
+        <div><label>Серийный №</label><input name="serial_no" value="{{ current.serial_no or '' }}" {{ 'disabled' if ro }} {{ fa('serial_no') }}></div>
+        <div><label>Город, страна</label><input name="city" value="{{ current.city or '' }}" placeholder="город, страна" {{ 'disabled' if ro }} {{ fa('city') }}></div>
+        <div><label>Отделение</label><input name="site" value="{{ current.site or '' }}" placeholder="отделение" {{ 'disabled' if ro }} {{ fa('site') }}></div>
+        {% if not ro %}<div><button>Сохранить</button></div>{% endif %}
+      </div></form>
+    {% if not ro and current.n_beams == 0 %}<form method="post" action="/equipment/linac/{{ current.id }}/delete" class="inline" onsubmit="return confirm('Удалить аппарат «{{ current.name }}»?')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Удалить аппарат</button></form>{% endif %}
+  </div>
+
+  <div class="card"><h2 style="margin-top:0">Фотоны</h2>
+    {% if photon_beams %}
+    <table class="compact"><tr><th>Энергия</th><th>Мощность дозы, MU/мин</th><th>Размер поля</th><th>Фантом</th><th>Референсная глубина <i>z</i><sub>ref</sub>, г/см²</th><th>z<sub>max</sub>{% filter sym %}, г/см²{% endfilter %}</th><th>PDD(<i>z</i><sub>ref</sub>), % при SSD 100 см</th><th>TMR(<i>z</i><sub>ref</sub>)</th><th>MU при калибровке</th><th>Готовность</th><th>Данные</th><th></th></tr>
+    {% for b in photon_beams %}<tr id="b{{ b.id }}"{{ ' class=saved' if saved == b.id|string }}>
+      <td><b>{{ '%g'|format(b.nominal_energy) }} MV{{ ' FFF' if b.fff }}</b></td>
+      <td><input form="bp{{ b.id }}" name="dose_rate" value="{{ '%g'|format(b.dose_rate_mu) if b.dose_rate_mu is not none }}" {{ 'disabled' if ro }} {{ fa('dose_rate') }}></td>
+      <td><input form="bp{{ b.id }}" name="field_size" value="{{ b.field_size or '' }}" placeholder="10 х 10" {{ 'disabled' if ro }} {{ fa('field_size') }}></td>
+      <td><input form="bp{{ b.id }}" name="phantom" value="{{ b.phantom or '' }}" placeholder="водный" {{ 'disabled' if ro }} {{ fa('phantom') }}></td>
+      <td><input form="bp{{ b.id }}" name="ref_depth" value="{{ '%g'|format(b.ref_depth) if b.ref_depth is not none }}" placeholder="{{ '10' if b.modality == 'photon' else '' }}" {{ 'disabled' if ro }} {{ fa('ref_depth') }}></td>
+      <td><input form="bp{{ b.id }}" name="zmax" value="{{ '%g'|format(b.zmax) if b.zmax is not none }}" {{ 'disabled' if ro }} {{ fa('zmax') }}></td>
+      <td><input form="bp{{ b.id }}" name="pdd_zref" value="{{ '%g'|format(b.pdd_zref) if b.pdd_zref is not none }}" {{ 'disabled' if ro }} {{ fa('pdd_zref') }}></td>
+      <td><input form="bp{{ b.id }}" name="tmr_zref" value="{{ '%g'|format(b.tmr_zref) if b.tmr_zref is not none }}" {{ 'disabled' if ro }} {{ fa('tmr_zref') }}></td>
+      <td><input form="bp{{ b.id }}" name="cal_mu" value="{{ '%g'|format(b.cal_mu) if b.cal_mu is not none }}" placeholder="200" {{ 'disabled' if ro }} {{ fa('cal_mu') }}></td>
+      <td>{% if b.ready.state == 'ok' %}<span class="badge ok">✓ готов</span>{% elif b.ready.state == 'warn' %}<span class="badge warn">заполнено не всё: {{ b.ready.soft|join(', ') }}</span>{% else %}<span class="badge bad">не хватает: {{ b.ready.hard|join(', ')|sym }}</span>{% endif %}</td>
+      <td class="muted">{% if b.records.sessions or b.records.legacy %}измерений {{ b.records.sessions }}, импорт {{ b.records.legacy }}{% else %}—{% endif %}</td>
+      <td style="white-space:nowrap">{% if not ro %}<button form="bp{{ b.id }}">Сохранить</button>
+        {% if not (b.records.sessions or b.records.legacy) %}<form method="post" action="/equipment/beam/{{ b.id }}/delete" class="inline" onsubmit="return confirm('Удалить этот пучок?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><button class="danger">Удалить</button></form>{% endif %}{{ beam_more(b, back) }}{% endif %}</td>
+    </tr>
+    <tr class="sub"><td></td><td colspan="11"><details {{ 'open' if b.exp_cgy_mu is not none }}><summary>Только для SAD: ожидаемая доза по системе планирования (необязательно)</summary>
+      <div class="eqgrid">
+        <div><label>Ожидаемая доза, сГр/MU</label><input form="bp{{ b.id }}" name="exp_cgy_mu" value="{{ '%g'|format(b.exp_cgy_mu) if b.exp_cgy_mu is not none }}" size="8" {{ 'disabled' if ro }} {{ fa('exp_cgy_mu') }}></div>
+        <div style="flex:1;min-width:260px"><label>Откуда значение (система планирования, версия)</label><input form="bp{{ b.id }}" name="exp_source" value="{{ b.exp_source or '' }}" style="width:100%" {{ 'disabled' if ro }} {{ fa('exp_source') }}></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">Нужно, если измеряете при SAD и сравниваете с системой планирования. Глубина точки берётся из «Референсной глубины» пучка. Если изменить значение, новые записи пойдут в отдельный ряд тренда.</p></details></td></tr>
+    {% endfor %}</table>
+    {% else %}<p class="muted">Фотонных пучков у этого аппарата пока нет.</p>{% endif %}
+  </div>
+
+  <div class="card"><h2 style="margin-top:0">Электроны</h2>
+    {% if electron_beams %}
+    <table class="compact"><tr><th>Энергия</th><th>Мощность дозы, MU/мин</th><th>Аппликатор</th><th>Фантом</th><th>Референсная глубина <i>z</i><sub>ref</sub>, г/см²</th><th>z<sub>max</sub>{% filter sym %}, г/см²{% endfilter %}</th><th>PDD(<i>z</i><sub>ref</sub>), % при SSD 100 см</th><th>MU при калибровке</th><th>Готовность</th><th>Данные</th><th></th></tr>
+    {% for b in electron_beams %}<tr id="b{{ b.id }}"{{ ' class=saved' if saved == b.id|string }}>
+      <td><b>{{ '%g'|format(b.nominal_energy) }} MeV</b></td>
+      <td><input form="bp{{ b.id }}" name="dose_rate" value="{{ '%g'|format(b.dose_rate_mu) if b.dose_rate_mu is not none }}" {{ 'disabled' if ro }} {{ fa('dose_rate') }}></td>
+      <td><input form="bp{{ b.id }}" name="field_size" value="{{ b.field_size or '' }}" placeholder="15х15" {{ 'disabled' if ro }} {{ fa('field_size') }}></td>
+      <td><input form="bp{{ b.id }}" name="phantom" value="{{ b.phantom or '' }}" placeholder="водный" {{ 'disabled' if ro }} {{ fa('phantom') }}></td>
+      <td><input form="bp{{ b.id }}" name="ref_depth" value="{{ '%g'|format(b.ref_depth) if b.ref_depth is not none }}" placeholder="{{ '10' if b.modality == 'photon' else '' }}" {{ 'disabled' if ro }} {{ fa('ref_depth') }}></td>
+      <td><input form="bp{{ b.id }}" name="zmax" value="{{ '%g'|format(b.zmax) if b.zmax is not none }}" {{ 'disabled' if ro }} {{ fa('zmax') }}></td>
+      <td><input form="bp{{ b.id }}" name="pdd_zref" value="{{ '%g'|format(b.pdd_zref) if b.pdd_zref is not none }}" {{ 'disabled' if ro }} {{ fa('pdd_zref') }}></td>
+      <td><input form="bp{{ b.id }}" name="cal_mu" value="{{ '%g'|format(b.cal_mu) if b.cal_mu is not none }}" placeholder="100" {{ 'disabled' if ro }} {{ fa('cal_mu') }}></td>
+      <td>{% if b.ready.state == 'ok' %}<span class="badge ok">✓ готов</span>{% elif b.ready.state == 'warn' %}<span class="badge warn">заполнено не всё: {{ b.ready.soft|join(', ') }}</span>{% else %}<span class="badge bad">не хватает: {{ b.ready.hard|join(', ')|sym }}</span>{% endif %}</td>
+      <td class="muted">{% if b.records.sessions or b.records.legacy %}измерений {{ b.records.sessions }}, импорт {{ b.records.legacy }}{% else %}—{% endif %}</td>
+      <td style="white-space:nowrap">{% if not ro %}<button form="bp{{ b.id }}">Сохранить</button>
+        {% if not (b.records.sessions or b.records.legacy) %}<form method="post" action="/equipment/beam/{{ b.id }}/delete" class="inline" onsubmit="return confirm('Удалить этот пучок?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><button class="danger">Удалить</button></form>{% endif %}{{ beam_more(b, back) }}{% endif %}</td>
+    </tr>
+    <tr class="sub"><td></td><td colspan="10"><details {{ 'open' if b.window_material or b.c_pl is not none or b.h_pl is not none }}><summary>Окно водного фантома и пластиковый фантом</summary>
+      <div class="eqgrid">
+        <div><label>Окно: материал</label><input form="bp{{ b.id }}" name="window_material" value="{{ b.window_material or '' }}" size="10" placeholder="ПММА" {{ 'disabled' if ro }} {{ fa('window_material') }}></div>
+        <div><label>толщина{% filter sym %}, г/см²{% endfilter %}</label><input form="bp{{ b.id }}" name="window_thickness" value="{{ '%g'|format(b.window_thickness) if b.window_thickness is not none }}" size="6" {{ 'disabled' if ro }} {{ fa('window_thickness') }}></div>
+        <div><label>c<sub>pl</sub></label><input form="bp{{ b.id }}" name="c_pl" value="{{ '%g'|format(b.c_pl) if b.c_pl is not none }}" size="6" placeholder="1" {{ 'disabled' if ro }} {{ fa('c_pl') }}></div>
+        <div><label>h<sub>pl</sub></label><input form="bp{{ b.id }}" name="h_pl" value="{{ '%g'|format(b.h_pl) if b.h_pl is not none }}" size="6" placeholder="1" {{ 'disabled' if ro }} {{ fa('h_pl') }}></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">Для электронов c<sub>pl</sub> и h<sub>pl</sub> нужны только при пластиковом фантоме (для воды оставьте пустыми).</p></details></td></tr>
+    {% endfor %}</table>
+    {% else %}<p class="muted">Электронных пучков у этого аппарата пока нет.</p>{% endif %}
+  </div>
+
+  {% for b in beams %}<form id="bp{{ b.id }}" method="post" action="/equipment/beam/{{ b.id }}/params"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"></form>{% endfor %}
+
+  {% if archived_beams %}<div class="card"><h2 style="margin-top:0">Архив пучков</h2>
+    <p class="muted" style="font-size:13px;margin:0 0 6px">Пучки в архиве не предлагаются для нового измерения; их записи и тренды сохранены.</p>
+    <table class="compact"><tr><th>Пучок</th><th>Записей</th><th></th></tr>
+    {% for b in archived_beams %}<tr><td><b>{{ '%g'|format(b.nominal_energy) }} {{ 'MV' if b.modality == 'photon' else 'MeV' }}{{ ' FFF' if b.fff }}</b> ({{ 'фотоны' if b.modality == 'photon' else 'электроны' }})</td>
+      <td class="muted">{% if b.records.sessions or b.records.legacy %}измерений {{ b.records.sessions }}, импорт {{ b.records.legacy }}{% else %}—{% endif %}</td>
+      <td>{% if not ro %}{{ beam_more(b, back) }}{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+
+  {% if not ro %}<div class="card"><h2 style="margin-top:0">Добавить пучок</h2>
+    <form method="post" action="/equipment/beam" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="linac_id" value="{{ current.id }}">
+      <select name="modality"><option value="photon">фотоны</option><option value="electron">электроны</option></select>
+      <input name="energy" placeholder="Энергия" size="6" required><label style="margin:0"><input type="checkbox" name="fff" value="1"> FFF</label><button>Добавить пучок</button></form>
+    <p class="muted" style="font-size:13px;margin:8px 0 0">Пучок без данных удаляется кнопкой «Удалить». Пучок с записями отправляется в архив; если все его записи черновики, его можно удалить вместе с ними (меню «⋯»). Утверждённые записи удалить нельзя.</p></div>{% endif %}
+  {% else %}<div class="card"><p class="muted">Добавьте первый аппарат (слева).</p></div>{% endif %}
+  </section>
+</div>
+<div id="eq_dirty"><b>Есть несохранённые изменения</b> (<span id="eq_dirty_n">0</span>): отмечены цветом, кнопка «Сохранить» в строке подсвечена. Enter в поле тоже сохраняет строку.</div>
+<script>
+(function () {
+  var dirtyForms = {}, leaving = false;
+  var fields = Array.prototype.slice.call(document.querySelectorAll('input, select')).filter(function (el) { return el.form && /^(bp|lin)\d+$/.test(el.form.id); });
+  function refresh(form) {
+    var any = fields.some(function (el) { return el.form === form && el.classList.contains('dirty'); });
+    if (any) dirtyForms[form.id] = form; else delete dirtyForms[form.id];
+    document.querySelectorAll('button[form="' + form.id + '"]').forEach(function (b) { b.classList.toggle('dirty-btn', any); });
+    form.querySelectorAll('button').forEach(function (b) { b.classList.toggle('dirty-btn', any); });
+    var n = Object.keys(dirtyForms).length;
+    document.getElementById('eq_dirty_n').textContent = n;
+    document.getElementById('eq_dirty').style.display = n ? 'block' : 'none';
+  }
+  fields.forEach(function (el) {
+    if (el.value !== el.defaultValue) el.value = el.defaultValue;       // a reload must not bring back what the browser remembers: only saved values are shown
+    el.dataset.orig = el.defaultValue;
+    el.addEventListener('input', function () { el.classList.toggle('dirty', el.value !== el.dataset.orig); refresh(el.form); });
+    el.addEventListener('change', function () { el.classList.toggle('dirty', el.value !== el.dataset.orig); refresh(el.form); });
+  });
+  document.querySelectorAll('form').forEach(function (f) { f.setAttribute('autocomplete', 'off'); f.addEventListener('submit', function () { leaving = true; }); });
+  window.addEventListener('pageshow', function (e) {          // back/forward cache: the page returns as it was left; show the saved values again
+    if (!e.persisted) return;
+    fields.forEach(function (el) { el.value = el.defaultValue; el.classList.remove('dirty'); });
+    Object.keys(dirtyForms).forEach(function (id) { refresh(dirtyForms[id]); });
+  });
+  window.addEventListener('beforeunload', function (e) { if (!leaving && Object.keys(dirtyForms).length) { e.preventDefault(); e.returnValue = ''; } });
+  function saveAll() {          // every changed row is posted as it would be by its own button
+    return Object.keys(dirtyForms).reduce(function (p, id) {
+      return p.then(function () {
+        var f = dirtyForms[id];
+        if (!f.checkValidity()) { f.reportValidity(); throw new Error('Есть поля с недопустимыми значениями'); }
+        return fetch(f.action, {method: 'POST', body: new URLSearchParams(new FormData(f)), credentials: 'same-origin'}).then(function (r) {
+          if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+        });
+      });
+    }, Promise.resolve());
+  }
+  document.addEventListener('click', function (e) {      // leaving through a link of the page: ask what to do with the changes
+    var a = e.target.closest('a[href]');
+    if (!a || !Object.keys(dirtyForms).length || a.target === '_blank' || a.getAttribute('href').charAt(0) === '#') return;
+    e.preventDefault();
+    var go = a.href;
+    if (confirm('Есть несохранённые изменения. Сохранить их перед переходом?')) {
+      saveAll().then(function () { leaving = true; location.href = go; }).catch(function (err) { alert('Не сохранено: ' + err.message.slice(0, 200)); });
+    } else if (confirm('Перейти без сохранения? Изменения будут потеряны.')) {
+      leaving = true; location.href = go;
+    }
+  });
+})();
+</script>

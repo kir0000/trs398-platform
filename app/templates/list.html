@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Измерения{% endblock %}
+{% block content %}
+<div class="row" style="justify-content:space-between;margin-bottom:12px">
+  <h1 style="margin:0">Измерения</h1>
+  {% if can_create %}<span><a class="btn primary" href="/measurements/new?modality=photon">+ Фотоны</a> <a class="btn primary" href="/measurements/new?modality=electron">+ Электроны</a></span>{% endif %}
+</div>
+{% if can_review and pending %}<div class="card warn">На проверке: {{ pending }}. <a href="/measurements?status=submitted">Показать</a></div>{% endif %}
+<div class="row" style="margin-bottom:10px">
+  <a href="/measurements" class="btn">Все</a>
+  {% for k, v in status_labels.items() %}<a href="/measurements?status={{ k }}" class="btn{{ ' primary' if status == k }}">{{ v }}</a>{% endfor %}
+</div>
+<div class="card">
+<table class="sortable">
+  <tr><th>№ протокола</th><th data-default="desc">Дата</th><th>Тип</th><th>Пучок</th><th>{% filter sym %}Dw(zmax), Гр/MU{% endfilter %}</th><th>Откл., %</th><th>Статус</th><th>Автор</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/measurements/{{ r.id }}">{{ r.protocol_no }}</a></td><td>{{ r.measured_on.strftime('%d.%m.%Y') }}</td>
+    <td data-sort="{{ r.modality }}">{{ 'γ' if r.modality == 'photon' else 'e⁻' }}</td><td>{{ r.label }}</td>
+    <td>{{ '%.6f'|format(r.dw_zmax) if r.dw_zmax is not none else '—' }}</td>
+    <td data-sort="{{ r.deviation_pct if r.deviation_pct is not none else '' }}">{{ r.deviation_pct|signed(2) }}</td>
+    <td class="s-{{ r.status }}">{{ status_labels[r.status] }}</td><td>{{ r.creator }}</td>
+  </tr>
+  {% else %}<tr><td colspan="8" class="muted">Записей пока нет.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

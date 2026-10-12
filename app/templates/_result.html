@@ -1,0 +1,14 @@
+{% set dev = res.deviation_pct|abs if res else 0 %}{% set st = 'ok' if dev <= 1 else 'warn' if dev <= 2 else 'err' %}
+{% if error %}<div class="err">{{ error }}</div>{% elif res %}
+{% if res.dw_zmax is none %}<div class="rs-{{ st }}"><p class="big" style="margin:0">{% filter sym %}Dw(zref) ={% endfilter %} {{ '%.6f'|format(res.dw_zref) }} Гр/MU
+ <span class="pill {{ st }}">{{ '%+.2f'|format(res.deviation_pct) }} % от ожидаемых {{ exp_cgy_mu }} сГр/MU</span>
+ <span style="font-size:14px;font-weight:600">{{ 'в норме (до 1 %)' if st == 'ok' else 'наблюдение (1–2 %)' if st == 'warn' else 'вне допуска (более 2 %)' }}</span></p>
+<p class="muted" style="margin:4px 0 0;font-size:13px">{% filter sym %}kQ = {% endfilter %}{{ '%.4f'|format(res.k_q) }} · доза в опорной точке (SAD), цвет по отклонению от ожидаемой дозы системы планирования
+{% else %}<div class="rs-{{ st }}"><p class="big" style="margin:0">{% filter sym %}Dw(zmax) ={% endfilter %} {{ '%.6f'|format(res.dw_zmax) }} Гр/MU
+ <span class="pill {{ st }}">{{ '%+.2f'|format(res.deviation_pct) }} % от 1 сГр/MU</span>
+ <span style="font-size:14px;font-weight:600">{{ 'в норме (до 1 %)' if st == 'ok' else 'наблюдение (1–2 %)' if st == 'warn' else 'вне допуска (более 2 %)' }}</span></p>
+<p class="muted" style="margin:4px 0 0;font-size:13px">{% filter sym %}Dw(zref) = {% endfilter %}{{ '%.6f'|format(res.dw_zref) }} Гр/MU · {% filter sym %}kQ = {% endfilter %}{{ '%.4f'|format(res.k_q) }} · цвет по отклонению от 1 сГр/MU: зелёный до 1 %, жёлтый 1–2 %, красный более 2 %.</p></div>
+{% endif %}
+{% endif %}
+{% for k, val in cells.items() %}<span id="live_{{ k }}" class="c {{ ("qsrc " ~ ("qwarn" if "проверьте" in val else "qin" if val.startswith("введено") else "qpdd" if val.startswith("рассчитано") else "")) if k == "qsrc" else ("cy st-" ~ st if res and k in ("dev", "dwmax") else "cy st-" ~ drift[k] if k in drift else "cy") }}" hx-swap-oob="true">{{ val }}</span>
+{% endfor %}
