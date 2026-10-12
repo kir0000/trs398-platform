@@ -12,7 +12,7 @@ def test_package_compose_has_no_build_and_keeps_everything_else():
     import make_bundle
     text = make_bundle.release_compose("1.0.0")
     assert "build:" not in text and "context: ." not in text and "APP_VERSION" not in text
-    assert "image: ${TRS_IMAGE:-ghcr.io/kir0000/trs398-platform}:${TRS_VERSION:-latest}" in text
+    assert "image: ${TRS_IMAGE:-ghcr.io/kir0000/trs398-app}:${TRS_VERSION:-latest}" in text
     for service in ("db:", "app:", "backup:", "https:"):
         assert f"\n  {service}" in text
     assert "./db/init:/docker-entrypoint-initdb.d:ro" in text and "container_name: trs398_app" in text

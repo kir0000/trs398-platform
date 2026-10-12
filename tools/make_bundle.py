@@ -23,7 +23,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-IMAGE_REPO = "ghcr.io/kir0000/trs398-platform"
+IMAGE_REPO = "ghcr.io/kir0000/trs398-app"
 EXTRA_IMAGES = ["postgres:17", "caddy:2-alpine", "alpine/openssl:latest"]       # database and backups, HTTPS proxy, certificate generation
 
 FILES = ["start.bat", "stop.bat", "update.bat", "backup-now.bat", "backup-now.sh", "restore.bat", "restore.sh", "lan-on.bat", "lan-off.bat",

@@ -21,7 +21,7 @@ services:
       retries: 10
 
   app:
-    image: ${TRS_IMAGE:-ghcr.io/kir0000/trs398-platform}:${TRS_VERSION:-latest}
+    image: ${TRS_IMAGE:-ghcr.io/kir0000/trs398-app}:${TRS_VERSION:-latest}
     build:
       context: .
       args:

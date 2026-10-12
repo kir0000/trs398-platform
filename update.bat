@@ -14,7 +14,7 @@ if exist ".git" (
 )
 if exist "VERSION" set /p TRS_VERSION=<VERSION
 if exist "images\trs398-images.tar.gz" (
-  docker image inspect ghcr.io/kir0000/trs398-platform:!TRS_VERSION! >nul 2>&1 || (echo !S_LOADING! & docker load -i images\trs398-images.tar.gz)
+  docker image inspect ghcr.io/kir0000/trs398-app:!TRS_VERSION! >nul 2>&1 || (echo !S_LOADING! & docker load -i images\trs398-images.tar.gz)
 )
 if exist "Dockerfile" (docker compose up -d --build) else (docker compose up -d)
 docker exec -i trs398_db sh < db\migrate.sh

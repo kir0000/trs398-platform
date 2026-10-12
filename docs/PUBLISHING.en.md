@@ -20,7 +20,7 @@ or a network folder; GitHub is only needed by you to get the finished package.
 ## How to release a version
 
 1. Make sure the tests pass (`.venv\Scripts\python -m pytest -q tests`) and everything is committed.
-2. Set a tag: `git tag v1.0.0` and `git push origin v1.0.0`. GitHub Actions builds the image (it goes to `ghcr.io/kir0000/trs398-platform:1.0.0`)
+2. Set a tag: `git tag v1.0.0` and `git push origin v1.0.0`. GitHub Actions builds the image (it goes to `ghcr.io/kir0000/trs398-app:1.0.0`)
    and attaches two files to the release page (Releases):
    - `TRS398-1.0.0-offline.zip`: everything with the Docker images inside (about 0.5–0.7 GB), for computers without the Internet;
    - `TRS398-1.0.0-installer.zip`: the same without the images (small), the images are pulled at the start (needs the Internet and a public package in ghcr.io).
@@ -45,5 +45,5 @@ or a network folder; GitHub is only needed by you to get the finished package.
 
 The image and the repository hold the code of the program, the documentation and the reference tables. They hold no patient data, no passwords and none of your measurements:
 `.env`, `backups/` and the databases stay on your computer. The image in ghcr.io is private by default; to let anybody download it without signing in,
-open after the first publication: profile → Packages → trs398-platform → Package settings → Change visibility → Public.
+open after the first publication: profile → Packages → trs398-app → Package settings → Change visibility → Public.
 Before opening the repository go through the checklist above (at the start of this file).

@@ -58,7 +58,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository_owner }}/trs398-app
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
