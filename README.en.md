@@ -78,7 +78,7 @@ it is possible only through the maintenance operations in `app/dbops.py` for an 
 
 ## Demo data
 
-`python tools/seed_demo.py` fills the database with 2 years of monthly data: **2 linacs** (TrueBeam, Versa HD) and **15 beams**: photons 6, 6 FFF, 10 FFF, 15 MV and electrons 6, 9, 12, 15 MeV (360 approved records).
+`python tools/seed_demo.py` fills the database with 3 years of monthly data (`--years N` or `--months N` change the length, `--independent` removes the links between the energies; the energies of one linac share a common part (seasonal swing of the monitor, drift) and group events: all photons after a target service, all electrons after a scattering foil change, electrons from 9 MeV together, 6 MV with and without the filter): **2 linacs** (TrueBeam, Versa HD) and **15 beams**: photons 6, 6 FFF, 10 FFF, 15 MV and electrons 6, 9, 12, 15 MeV (360 approved records).
 Chambers and calibrations (illustrative values): TrueBeam follows the 2.0 templates (SNC600c Farmer, ND,w = 0.05138 Gy/nC; PTW 34001 Roos, ND,w = 0.5791 Gy/nC),
 Versa HD has its own (PTW 30013 Farmer and IBA NACP-02, the IBA Dose1 electrometer), plus two reserve chambers with a valid calibration (IBA FC65-G Farmer, a second PTW 34001 Roos).
 Each working chamber has two calibrations: a past one (expired, not available in the form) and the current one. The records are marked DEMO, made by the “Demo physicist” and approved by the “Demo reviewer”

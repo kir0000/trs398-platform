@@ -1,4 +1,4 @@
-"""Fill the database with demo measurements for several linacs and energies (two years, monthly).
+"""Fill the database with demo measurements for several linacs and energies (three years by default, monthly, with dependencies between the energies of a linac).
 The notes and the demo user names are Russian data; the English interface translates them through the phrase catalog.
 
 Equipment: TrueBeam follows the user's worksheet templates 2.0 (photons SNC600c Farmer, ND,w = 0.05138 Gy/nC, V1 = -300 V;
@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import random
 import sys
@@ -77,7 +78,8 @@ RESERVE = [
 LAB = "ВНИИФТРИ"
 DEMO_USERS = (("demo_phys", "Демо-физик", "physicist"), ("demo_rev", "Демо-проверяющий", "reviewer"))
 NOTES = {"plan": "DEMO: плановая проверка", "event": "DEMO: отклонение вне допуска, назначена перепроверка",
-         "adjust": "DEMO: настройка выходной дозы", "common": "DEMO: общий сдвиг после обслуживания монитора"}
+         "adjust": "DEMO: настройка выходной дозы", "common": "DEMO: общий сдвиг после обслуживания монитора",
+         "service": "DEMO: общий сдвиг группы энергий после сервисных работ"}
 # a common cause: all energies of a linac move together for a while (month index counted from the first record)
 COMMON_EVENTS = {"TrueBeam": [(17, 0.7), (18, 0.7)]}
 
@@ -87,6 +89,49 @@ def month_start(d: dt.date, back: int) -> dt.date:
     return dt.date(m // 12, m % 12 + 1, 1)
 
 
+# Dependencies between the energies of one linac (seed(..., linked=True); the default of the command line):
+#  - a common part for all beams of the linac: the seasonal swing of the monitor chamber and a slowly wandering monitor calibration
+#    (electrons follow it a little less than photons);
+#  - group events: (first month, shifts in %, who) where who is a modality ("photon", "electron", "all") optionally with a set of
+#    nominal energies and the FFF flag; the shift is added to every beam of the group in the months listed.
+# The month index counts from the first record of the series.
+LINKED = {
+    "TrueBeam": [
+        (8, [0.55, 0.45, 0.2], ("photon", None, None)),                  # steering after a target service: all photons together
+        (21, [-0.6, -0.45, -0.2], ("electron", None, None)),            # scattering foil replaced: all electrons together
+        (28, [0.7, 0.7], ("all", None, None)),                           # monitor service: everything moves for two months
+    ],
+    "Versa HD": [
+        (12, [-0.1, -0.2, -0.3, -0.4, -0.5, -0.6, -0.7, -0.8, -0.9, -1.0, -1.1, -1.2], ("photon", None, None)),   # common drift of photons
+        (24, [1.1, 0.5], ("photon", None, None)),                        # re-adjusted together
+        (17, [0.55, 0.45], ("electron", {9, 12, 15}, None)),            # electrons from 9 MeV share a shift, 6 MeV does not
+        (5, [0.4, 0.3, 0.15], ("photon", {6}, None)),                    # 6 MV with and without the filter move together
+    ],
+}
+
+
+def linked_extra(linac: str, modality: str, energy: int, fff: bool, months: int) -> list[float]:
+    """The part of the deviation (%) that this beam shares with the others of its linac, per month."""
+    rng = random.Random(f"linked|{linac}")
+    phase = rng.uniform(0, 12)
+    gain = 1.0 if modality == "photon" else 0.7
+    walk, extra = 0.0, []
+    for i in range(months):
+        walk = 0.9 * walk + rng.gauss(0, 0.06)
+        extra.append(gain * (0.12 * math.sin(2 * math.pi * (i + phase) / 12) + walk))
+    for first, shifts, (who, energies, fff_flag) in LINKED.get(linac, []):
+        if who != "all" and who != modality:
+            continue
+        if energies is not None and energy not in energies:
+            continue
+        if fff_flag is not None and fff != fff_flag:
+            continue
+        for k, v in enumerate(shifts):
+            if first + k < months:
+                extra[first + k] += v
+    return extra
+
+
 # two scenarios are fixed on purpose so that the demo always contains something to look at
 OVERRIDES = {
     ("Versa HD", "photon", 6, False): dict(event=14, jump=2.7),            # out of tolerance, then re-adjusted
@@ -94,12 +139,12 @@ OVERRIDES = {
 }
 
 
-def deviation_series(rng: random.Random, months: int, event="random", jump=None, drift=None, common=None):
+def deviation_series(rng: random.Random, months: int, event="random", jump=None, drift=None, common=None, extra=None):
     """(deviation %, kind) per month: noise + drift, maybe a jump out of tolerance followed by a re-adjustment."""
     level = rng.uniform(-0.12, 0.18)
     drift_ = rng.uniform(-0.008, 0.014)
     sigma = rng.uniform(0.15, 0.27)
-    event_ = rng.randrange(9, 18) if rng.random() < 0.6 else None
+    event_ = rng.randrange(9, 18 if months <= 24 else months - 8) if rng.random() < 0.6 else None
     jump_ = rng.choice([1.5, 2.2, 2.8])
     if event != "random":
         event_ = event
@@ -121,6 +166,10 @@ def deviation_series(rng: random.Random, months: int, event="random", jump=None,
     for idx, shift in common or []:                       # added after all random draws, so the other series do not change
         if idx < months:
             out[idx] = (round(out[idx][0] + shift, 3), out[idx][1] if out[idx][1] != "plan" else "common")
+    for i, add in enumerate(extra or []):                 # the part shared with the other energies of the linac
+        if i < months:
+            kind = out[i][1] if out[i][1] != "plan" or abs(add) < 0.35 else "service"
+            out[i] = (round(out[i][0] + add, 3), kind)
     return out
 
 
@@ -278,7 +327,7 @@ class Seeder:
         return values, res, extra
 
     # ---- whole run
-    def run(self, months: int, end: dt.date):
+    def run(self, months: int, end: dt.date, linked: bool = False):
         phys, rev = self.ensure_users()
         cals = {}
         summary = {"sessions": 0, "beams": [], "skipped": []}
@@ -300,9 +349,15 @@ class Seeder:
                     continue
                 rng = random.Random(f"{name}|{modality}|{energy}|{fff}")
                 if (name, modality) not in cals:
-                    cals[(name, modality)] = self.ensure_calibrations(modality, SETS[name][modality])
+                    spec = SETS[name][modality]
+                    first_on = month_start(end, months - 1).replace(day=15)
+                    if first_on < spec["cals"][0][0]:                  # a long series starts before the first calibration of the set: add the previous one
+                        start, until, nd_w, kelec = spec["cals"][0]
+                        spec = {**spec, "cals": [(start.replace(year=start.year - 2), start, round(nd_w * 1.0025, 5), kelec)] + spec["cals"]}
+                    cals[(name, modality)] = self.ensure_calibrations(modality, spec)
                 calibs, chamber_core_id = cals[(name, modality)]
-                for i, (d, kind) in enumerate(deviation_series(rng, months, common=COMMON_EVENTS.get(name),
+                shared = linked_extra(name, modality, energy, fff, months) if linked else None
+                for i, (d, kind) in enumerate(deviation_series(rng, months, common=None if linked else COMMON_EVENTS.get(name), extra=shared,
                                                                  **OVERRIDES.get((name, modality, energy, fff), {}))):
                     on = month_start(end, months - 1 - i).replace(day=15)
                     on_cal = [c for c in calibs if c[0] <= on][-1]
@@ -326,9 +381,10 @@ def default_end(today: dt.date) -> dt.date:
     return today.replace(day=1) if today.day >= 15 else month_start(today, 1)
 
 
-def seed(conn, months: int = 24, end: dt.date | None = None):
+def seed(conn, months: int = 24, end: dt.date | None = None, linked: bool = False):
+    """linked=True adds the dependencies between the energies of a linac (common part, group events, see LINKED)."""
     end = end or default_end(dt.date.today())
-    return Seeder(conn).run(months, end)
+    return Seeder(conn).run(months, end, linked)
 
 
 def remove(conn):
@@ -372,7 +428,9 @@ def remove(conn):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--remove", action="store_true", help="remove the demo data this script added")
-    ap.add_argument("--months", type=int, default=24)
+    ap.add_argument("--years", type=float, default=3, help="length of the history (default 3 years, monthly)")
+    ap.add_argument("--months", type=int, default=None, help="the same in months (overrides --years)")
+    ap.add_argument("--independent", action="store_true", help="no dependencies between the energies of a linac")
     ap.add_argument("--end", type=dt.date.fromisoformat, default=None, help="month of the last record (default: the latest month already past its 15th)")
     a = ap.parse_args()
     with appdb.connect() as conn:
@@ -381,7 +439,7 @@ def main():
         if a.remove:
             print(f"removed {remove(conn)} demo measurements")
         else:
-            s = seed(conn, a.months, a.end)
+            s = seed(conn, a.months or round(a.years * 12), a.end, linked=not a.independent)
             print(f"added {s['sessions']} measurements on {len(s['beams'])} beams")
             for line in s["skipped"]:
                 print("skipped (has real data):", line)
