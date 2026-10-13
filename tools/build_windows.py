@@ -34,6 +34,7 @@ def main():
     portable = build / "portable" / "TRS398"
     shutil.rmtree(build / "portable", ignore_errors=True)
     shutil.copytree(folder, portable)
+    shutil.copy(ROOT / "load-test-db.bat", portable / "load-test-db.bat")     # loads a database file (a backup or a transfer file) into this copy
     (portable / "portable.flag").write_text("data are kept in the folder `data` next to this file\n", encoding="utf-8")
     zip_path = shutil.make_archive(str(build / f"TRS398-portable-{version}"), "zip", build / "portable")
     print("portable:", zip_path)

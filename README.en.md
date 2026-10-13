@@ -36,7 +36,7 @@ A backup at any moment: the icon menu or the button "Make a backup now" on the *
 **Restore:** the icon menu item "Restore from a backup…" (or the Start menu shortcut), choose the number of the backup, type `YES`.
 The program closes, **the current database is saved in `backups\keep` first**, then replaced by the backup. Start the program again.
 
-**Move to another laptop:** install the program, put the backup file into `backups`, restore it. Passwords move with the backup.
+**Move to another laptop:** install the program, put the backup file into `backups`, restore it. Passwords move with the backup. Faster: on the laptop with the data `python tools/make_transfer.py` (or the icon menu → “Make a backup”) makes a file `trs398_….db.gz`; on the other laptop put it next to `TRS398.exe` (or into the folder `transfer`) and double-click **`load-test-db.bat`** of the portable version (a file can also be dragged onto the script): the database of that copy of the program is replaced, the old one is kept in `backups\keep`, and only the program of the same folder is closed.
 
 **A new empty database:** exit the program, rename or delete `trs398.db` in the data folder (make a backup first), start the program: it offers to create the administrator.
 

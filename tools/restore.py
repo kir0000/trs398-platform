@@ -1,6 +1,9 @@
 """Bring a backup back: the database file is REPLACED by the chosen copy. Close the program first.
 
-    python tools/restore.py [file name in the backups folder | path]     (no argument: choose from the newest)
+    python tools/restore.py [file | folder | name in the backups folder] [--yes]
+        file    a backup (trs398_*.db.gz) or a plain database file (*.db); a folder: the newest backup in it
+        --yes   do not ask for the confirmation (used by load-test-db.bat)
+    (no argument: choose from the newest backups of the program)
 
 The database that is being replaced is kept in the folder `keep` of the backups before anything else happens.
 """
@@ -16,10 +19,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import backups, db  # noqa: E402
 
 
+def newest_in(folder: Path) -> Path | None:
+    files = sorted(folder.glob(backups.PATTERN), key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0] if files else None
+
+
 def choose(arg: str | None) -> Path:
     folder = backups.backup_dir()
     if arg:
         p = Path(arg)
+        if p.is_dir():
+            found = newest_in(p) or newest_in(p / "transfer")
+            if not found:
+                raise SystemExit(f"no backups (trs398_*.db.gz) in {p}")
+            return found
         return p if p.is_file() else folder / arg
     files = sorted(folder.glob(backups.PATTERN), key=lambda p: p.stat().st_mtime, reverse=True)[:10]
     if not files:
@@ -30,17 +43,28 @@ def choose(arg: str | None) -> Path:
     return files[int(n) - 1]
 
 
+def unpack(src: Path, dest: Path) -> None:
+    """A backup (gzip) or a plain SQLite file into dest."""
+    with open(src, "rb") as f:
+        magic = f.read(16)
+    if magic.startswith(b"SQLite format 3"):
+        shutil.copyfile(src, dest)
+        return
+    with gzip.open(src, "rb") as f_in, open(dest, "wb") as f_out:
+        shutil.copyfileobj(f_in, f_out)
+
+
 def main():
-    src = choose(sys.argv[1] if len(sys.argv) > 1 else None)
+    args = [a for a in sys.argv[1:] if a != "--yes"]
+    src = choose(args[0] if args else None)
     if not src.is_file():
         raise SystemExit(f"no such backup: {src}")
-    if input(f"The database will be REPLACED by {src.name}. Type YES to continue: ").strip() != "YES":
+    if "--yes" not in sys.argv[1:] and input(f"The database will be REPLACED by {src.name}. Type YES to continue: ").strip() != "YES":
         raise SystemExit("Cancelled.")
     target = db.db_path()
     with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
         new = Path(tmp) / "restored.db"
-        with gzip.open(src, "rb") as f_in, open(new, "wb") as f_out:
-            shutil.copyfileobj(f_in, f_out)
+        unpack(src, new)
         c = sqlite3.connect(new)
         verdict = c.execute("PRAGMA integrity_check").fetchone()[0]
         c.close()
