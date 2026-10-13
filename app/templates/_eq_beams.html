@@ -109,8 +109,8 @@
 
   {% if not ro %}<div class="card"><h2 style="margin-top:0">Добавить пучок</h2>
     <form method="post" action="/equipment/beam" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="linac_id" value="{{ current.id }}">
-      <select name="modality"><option value="photon">фотоны</option><option value="electron">электроны</option></select>
-      <input name="energy" placeholder="Энергия" size="6" required><label style="margin:0"><input type="checkbox" name="fff" value="1"> FFF</label><button>Добавить пучок</button></form>
+      <select name="modality" onchange="var o=this.form.querySelector('.fff-opt'),e=this.value==='electron';o.style.display=e?'none':'';if(e){o.querySelector('input').checked=false}"><option value="photon">фотоны</option><option value="electron">электроны</option></select>
+      <input name="energy" placeholder="Энергия" size="6" required><label class="fff-opt" style="margin:0"><input type="checkbox" name="fff" value="1"> FFF</label><button>Добавить пучок</button></form>
     <p class="muted" style="font-size:13px;margin:8px 0 0">Пучок без данных удаляется кнопкой «Удалить». Пучок с записями отправляется в архив; если все его записи черновики, его можно удалить вместе с ними (меню «⋯»). Утверждённые записи удалить нельзя.</p></div>{% endif %}
   {% else %}<div class="card"><p class="muted">Добавьте первый аппарат (слева).</p></div>{% endif %}
   </section>
