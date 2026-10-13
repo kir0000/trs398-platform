@@ -45,18 +45,14 @@ if getattr(sys, "frozen", False):                          # the released build 
 os.environ["TRS_DATA"] = str(choose_data_dir())
 Path(os.environ["TRS_DATA"]).mkdir(parents=True, exist_ok=True)
 
-SETTINGS = Path(os.environ["TRS_DATA"]) / "settings.json"
-
-
 def load_settings() -> dict:
-    try:
-        return {"port": 8000, "lan": False, **json.loads(SETTINGS.read_text(encoding="utf-8"))}
-    except (OSError, ValueError):
-        return {"port": 8000, "lan": False}
+    from app import settings
+    return settings.load()
 
 
 def save_settings(s: dict) -> None:
-    SETTINGS.write_text(json.dumps(s, indent=2), encoding="utf-8")
+    from app import settings
+    settings.save(s)
 
 
 # ---- start with Windows (the Run key of the current user: no administrator rights needed)

@@ -3,6 +3,7 @@ made every day inside the program and kept for BACKUP_KEEP_DAYS days. The restor
 from __future__ import annotations
 
 import gzip
+import json
 import logging
 import os
 import shutil
@@ -13,7 +14,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from app import db
+from app import db, settings
 
 STALE_AFTER = timedelta(hours=36)
 PATTERN = "trs398_*.db.gz"
@@ -27,6 +28,103 @@ def backup_dir() -> Path:
     return p
 
 
+def copy_dir() -> Path | None:
+    """The folder for the second copy of every backup (a network folder, a USB stick, a synchronised disk), if one is set."""
+    raw = os.environ.get("BACKUP_COPY_DIR") or settings.load().get("backup_copy_dir") or ""
+    return Path(raw) if raw.strip() else None
+
+
+def _status_file() -> Path:
+    return db.data_dir() / "backup_external.json"
+
+
+def _write_status(**fields) -> None:
+    try:
+        _status_file().write_text(json.dumps(fields, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def copy_out(src: Path) -> bool | None:
+    """Copy a backup file to the second place and remove the old ones there. None: no second place is set."""
+    target_dir = copy_dir()
+    if target_dir is None:
+        return None
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, target_dir / src.name)
+        cutoff = time.time() - keep_days() * 86400
+        for old in target_dir.glob(PATTERN):
+            if old.name != src.name and old.stat().st_mtime < cutoff:
+                old.unlink(missing_ok=True)
+        _write_status(when=datetime.now().isoformat(timespec="seconds"), name=src.name, path=str(target_dir), error=None)
+        log.info("second copy made: %s -> %s", src.name, target_dir)
+        return True
+    except Exception as e:                                       # noqa: BLE001  (unplugged disk, no rights, no network)
+        _write_status(when=_read_status().get("when"), name=_read_status().get("name"), path=str(target_dir), error=str(e)[:200],
+                      failed_at=datetime.now().isoformat(timespec="seconds"))
+        log.exception("the second copy failed (%s)", target_dir)
+        return False
+
+
+def _read_status() -> dict:
+    try:
+        return json.loads(_status_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def external_status(now: datetime | None = None) -> dict:
+    """{'configured', 'path', 'ok', 'when', 'name', 'error', 'stale', 'message'}: the state of the second copy."""
+    now = now or datetime.now()
+    d = copy_dir()
+    if d is None:
+        return {"configured": False, "ok": False, "stale": False,
+                "message": "Вторая копия не настроена: все копии лежат на этом же компьютере."}
+    st = _read_status()
+    when = datetime.fromisoformat(st["when"]) if st.get("when") else None
+    stale = when is None or now - when > STALE_AFTER
+    if st.get("error"):
+        msg = f"Не удалось сделать вторую копию: {st['error']}"
+    elif when is None:
+        msg = "Вторая копия ещё не делалась."
+    elif stale:
+        msg = "Последняя вторая копия старше 36 часов: проверьте, подключена ли папка."
+    else:
+        msg = "Вторая копия свежая."
+    return {"configured": True, "path": str(d), "ok": not stale and not st.get("error"), "when": when, "name": st.get("name"),
+            "error": st.get("error"), "stale": stale or bool(st.get("error")), "message": msg}
+
+
+def set_copy_dir(raw: str) -> tuple[bool, str]:
+    """Save the folder of the second copy after checking that it can be written; the newest backup is copied there at once."""
+    raw = (raw or "").strip().strip('"')
+    s = settings.load()
+    if not raw:
+        s["backup_copy_dir"] = ""
+        settings.save(s)
+        _write_status()
+        return True, "Вторая копия выключена."
+    target = Path(raw)
+    try:
+        if target.resolve() == backup_dir().resolve():
+            return False, "Это та же папка, где лежат основные копии: выберите другое место (другой диск или сетевую папку)."
+        target.mkdir(parents=True, exist_ok=True)
+        probe = target / ".trs398_write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as e:
+        return False, f"В эту папку нельзя записывать: {e}"
+    s["backup_copy_dir"] = str(target)
+    settings.save(s)
+    _write_status()
+    files = sorted(backup_dir().glob(PATTERN), key=lambda p: p.stat().st_mtime)
+    ok = copy_out(files[-1]) if files else True
+    if ok is False:
+        return False, "Папка сохранена, но копия в неё не записалась: " + (external_status().get("error") or "")
+    return True, "Папка сохранена, последняя копия записана." if files else "Папка сохранена, копия появится при следующем резервном копировании."
+
+
 def keep_days() -> int:
     try:
         return max(1, int(os.environ.get("BACKUP_KEEP_DAYS", "30")))
@@ -37,7 +135,8 @@ def keep_days() -> int:
 def make(now: datetime | None = None, folder: Path | None = None) -> Path:
     """A compressed copy of the database right now; copies older than the keeping period are removed. Returns its path."""
     now = now or datetime.now()
-    folder = folder or backup_dir()
+    default_folder = backup_dir()
+    folder = folder or default_folder
     target = folder / f"trs398_{now:%Y-%m-%d_%H%M%S}.db.gz"
     with _lock:
         fd, tmp = tempfile.mkstemp(suffix=".db", dir=str(folder))
@@ -58,6 +157,8 @@ def make(now: datetime | None = None, folder: Path | None = None) -> Path:
         for old in folder.glob(PATTERN):
             if old != target and old.stat().st_mtime < cutoff:
                 old.unlink(missing_ok=True)
+    if folder == default_folder:                         # the safety copies of restore (folder keep/) are not copied out
+        copy_out(target)
     return target
 
 

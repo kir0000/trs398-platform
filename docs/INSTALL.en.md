@@ -19,7 +19,7 @@ Windows 10 or 11 is needed. Docker, Python and database servers are **not** need
 - The icon near the clock: a click opens the program, the right button gives the menu (backup, data folder, restore, autostart, access from other computers, exit).
   If you do not see the icon, it is hidden under the "^" arrow near the clock.
 - Closing the browser leaves the program running; open it again with the icon or the shortcut. To stop it: "Exit".
-- Backups are made every day by themselves while the program is running. Every week or two copy the `backups` folder to another medium.
+- Backups are made every day by themselves while the program is running. So that they do not vanish together with the laptop, set a second folder once: administrator, “Backups” → “Second copy” (another disk, a USB stick, a network folder, a cloud folder). New backups will be written there too.
 
 ## Updating
 

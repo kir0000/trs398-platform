@@ -10,6 +10,15 @@
   <p class="muted" style="font-size:13px">Автоматически: при запуске и каждый день после 02:00 (время компьютера), хранится 30 дней. Файлы лежат в папке <code>backups</code> внутри папки с данными.
   Сейчас в базе: измерений {{ counts.sessions }}, пользователей {{ counts.users }}.</p>
 </div>
+<div class="card" style="border-color:var(--{{ 'ok' if external.ok else 'bad' if external.configured else 'line' }})"><h2>Вторая копия (другое место)</h2>
+  {% if ext_message %}<p class="{{ 'ok' if ext_ok else 'err' }}">{{ ext_message }}</p>{% endif %}
+  <p class="{{ 'ok' if external.ok else 'err' if external.configured else 'muted' }}" style="margin:0 0 8px">{{ external.message }}</p>
+  {% if external.configured and external.when %}<p style="margin:0 0 8px">Папка: <code>{{ external.path }}</code>. Последняя: <b>{{ external.name }}</b>, {{ external.when.strftime('%d.%m.%Y %H:%M') }}.</p>{% endif %}
+  <form method="post" action="/admin/backups/external" class="row" style="gap:8px"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="folder" value="{{ copy_dir }}" placeholder="D:\TRS398-backups" style="min-width:380px">
+    <button class="primary">Сохранить</button></form>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Каждая новая копия дополнительно записывается в эту папку (хранятся те же 30 дней). Выберите другой диск, флешку, сетевую папку или папку, которую синхронизирует облако. Пустое поле выключает вторую копию.</p>
+</div>
 <div class="card"><h2>Последние файлы</h2>
   <table class="sortable"><tr><th>Файл</th><th>Тип</th><th data-default="desc">Создан</th><th>КБ</th></tr>
   {% for f in files %}<tr><td>{{ f.name }}</td><td>{{ f.kind }}</td><td>{{ f.when.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ f.size_kb }}</td></tr>

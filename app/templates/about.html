@@ -7,7 +7,8 @@
   <p>Папка с данными: <code>{{ data_dir }}</code></p>
   <p>Файл базы: <code>{{ db_file }}</code>, {{ db_mb }} МБ</p>
   <p>Журнал ошибок: <code>{{ log_file }}</code> (пришлите его, если что-то работает не так)</p>
-  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0">{{ backup.message }}</p>
+  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0 0 4px">{{ backup.message }}</p>
+  <p class="{{ 'ok' if external.ok else 'err' if external.configured else 'muted' }}" style="margin:0">{{ external.message }}</p>
 </div>
 <div class="card"><h2>Обновления</h2>
   <p class="muted" style="font-size:13px">Программа сама никуда не обращается. Кнопка ниже делает один запрос к странице выпусков на GitHub; данные измерений не передаются.</p>

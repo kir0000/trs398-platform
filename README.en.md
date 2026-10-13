@@ -31,7 +31,7 @@ The whole database is one file `trs398.db`; backups are in `backups` beside it.
 
 The program makes a backup at start and then every day after 02:00 (the computer's time) while it is running, and keeps them for 30 days
 (`BACKUP_HOUR`, `BACKUP_KEEP_DAYS` environment variables). The files `backups\trs398_YYYY-MM-DD_HHMMSS.db.gz` contain user data and password hashes, keep the folder closed.
-A backup at any moment: the icon menu or the button "Make a backup now" on the **Backups** page. **Important:** backups lie on the same laptop, copy the `backups` folder to another medium from time to time.
+A backup at any moment: the icon menu or the button "Make a backup now" on the **Backups** page. **Important:** by default the backups lie on the same laptop. Set a **second folder** on the “Backups” page (another disk, a USB stick, a network folder or a cloud folder): every new backup is written there too, and a failure is shown as a warning on the “Backups” page and in “About”.
 
 **Restore:** the icon menu item "Restore from a backup…" (or the Start menu shortcut), choose the number of the backup, type `YES`.
 The program closes, **the current database is saved in `backups\keep` first**, then replaced by the backup. Start the program again.

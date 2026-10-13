@@ -290,7 +290,8 @@ def app_version() -> str:
 def about_context(**extra):
     path = db_path()
     return dict(version=app_version(), data_dir=str(data_dir()), db_file=str(path), log_file=str(applog.log_path()),
-                db_mb=round(path.stat().st_size / 1048576, 1) if path.exists() else 0, backup=backups.latest(), **extra)
+                db_mb=round(path.stat().st_size / 1048576, 1) if path.exists() else 0, backup=backups.latest(),
+                external=backups.external_status(), **extra)
 
 
 @app.get("/about", response_class=HTMLResponse)
@@ -1729,9 +1730,21 @@ def purge_counts(conn):
 
 
 @app.get("/admin/backups", response_class=HTMLResponse)
-def backups_page(request: Request, requested: str = "", user=Depends(require("admin")), conn=Depends(get_db)):
+def backups_page(request: Request, requested: str = "", ext: str = "", extok: str = "", user=Depends(require("admin")),
+                 conn=Depends(get_db)):
     return render(request, "admin_backups.html", user, backup=backups.latest(), files=backups.recent(), requested=bool(requested),
-                  counts=purge_counts(conn))
+                  counts=purge_counts(conn), external=backups.external_status(), ext_message=ext[:300], ext_ok=extok == "1",
+                  copy_dir=str(backups.copy_dir() or ""))
+
+
+@app.post("/admin/backups/external")
+async def backup_external(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+    form = await request.form()
+    check_csrf(request, form)
+    ok, message = backups.set_copy_dir(str(form.get("folder", "")))
+    audit(conn, user["id"], "backup_copy_dir", "backups", None, {"folder": str(form.get("folder", ""))[:200], "ok": ok})
+    from urllib.parse import quote
+    return RedirectResponse(f"/admin/backups?extok={int(ok)}&ext={quote(message)}", status_code=303)
 
 
 @app.post("/admin/backups/now")
