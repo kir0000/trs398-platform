@@ -95,7 +95,7 @@ python run.py            # the server without the tray icon, http://localhost:80
 python tools/build_windows.py [--installer]   # build: needs pystray, pillow, pyinstaller, and Inno Setup 6 for the installer
 ```
 
-The tests use a temporary SQLite database. The PDF is printed by the installed Edge or Chrome in headless mode (`app/pdf.py`; the test is skipped if there is none).
+`scipy` is not needed for the build (the kQ cubic spline is our own, `core/electron.py`; the comparison with scipy runs in the tests, it is in requirements-dev). The tests use a temporary SQLite database. The PDF is printed by the installed Edge or Chrome in headless mode (`app/pdf.py`; the test is skipped if there is none).
 Release: a tag `v2…` starts the build of the installer and the zip in GitHub Actions. Released migrations `app/migrations/NNN_*.sql` are never edited (`tests/test_migrations.py` checks their hashes): any schema change is a new file with the next number; before applying it to a database with data the program makes a copy in `backups/keep`.
 
 ### Languages
