@@ -14,6 +14,7 @@ def places(tmp_path, monkeypatch):
     data.mkdir()
     main.mkdir()
     monkeypatch.setenv("TRS_DATA", str(data))
+    monkeypatch.setenv("TRS_DB", str(data / "trs398.db"))                  # another test may have left TRS_DB pointing elsewhere
     monkeypatch.setenv("BACKUP_DIR", str(main))
     monkeypatch.delenv("BACKUP_COPY_DIR", raising=False)
     from app import db

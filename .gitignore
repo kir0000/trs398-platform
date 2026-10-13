@@ -17,4 +17,4 @@ i18n_chunk*.json
 dist/
 build/
 *.spec.bak
-data/
+/data/
