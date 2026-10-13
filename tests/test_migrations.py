@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient
 from app import db
 
 ROOT = Path(__file__).resolve().parent.parent
-RELEASED = {                                           # name -> sha256 of the text with LF line ends (released in 2.0.0 / 2.0.1)
+RELEASED = {                                           # name -> sha256 of the text with LF line ends (released in 2.0.0 and later)
     "001_baseline.sql": "210f7cef1590e18faa4508592835e5e9927e9fcebd505b4db4724241d3824cc7",
+    "002_audit_ip.sql": "ca7d2fc9f104ffd5423ba408a58dfec7debd1c59b7aad95c76c93a586fd63e87",                       # released in 2.2.0
 }
 
 
