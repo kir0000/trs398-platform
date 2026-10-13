@@ -54,3 +54,34 @@ def test_electron_calibration_ratio():
     r = el.calculate(example(q0_is_co60=False, r50_q0=7.0))
     q = el.beam_quality_r50w(3.755)
     assert r.k_q == pytest.approx(el.k_q_qint(1, q) / el.k_q_qint(1, 7.0), rel=1e-12)
+
+
+def test_own_spline_matches_scipy_on_every_table_row():
+    """The natural cubic spline of core.electron replaced scipy: same curve for every chamber, both tables, a dense sweep of R50."""
+    interpolate = pytest.importorskip("scipy.interpolate")
+    grid = el.load_tables()["r50_grid"]
+    worst = 0.0
+    for chamber in el.load_tables()["chambers"]:
+        for key in ("kq_table20", "kq_table21"):
+            row = chamber.get(key)
+            pts = [(x, y) for x, y in zip(grid, row or []) if y is not None]
+            if len(pts) < 2:
+                continue
+            xs, ys = zip(*pts)
+            ref = interpolate.CubicSpline(xs, ys, bc_type="natural")
+            for i in range(0, 201):
+                x = xs[0] + (xs[-1] - xs[0]) * i / 200
+                worst = max(worst, abs(el.natural_cubic_spline(xs, ys, x) - float(ref(x))))
+    assert worst < 1e-12
+
+
+def test_own_spline_properties():
+    xs, ys = [1.0, 2.0, 4.0, 7.0], [1.0, 0.5, 0.2, 0.1]
+    for x, y in zip(xs, ys):
+        assert el.natural_cubic_spline(xs, ys, x) == pytest.approx(y, abs=1e-12)           # passes through the nodes
+    assert el.natural_cubic_spline([1.0, 3.0], [2.0, 6.0], 2.0) == pytest.approx(4.0)       # two nodes: a straight line
+    h = 1e-3
+    for x0 in (xs[0], xs[-1]):                                                               # natural: no curvature at the ends
+        inward = h if x0 == xs[0] else -h
+        f = lambda x: el.natural_cubic_spline(xs, ys, x)                                     # noqa: E731
+        assert abs((f(x0 + 2 * inward) - 2 * f(x0 + inward) + f(x0)) / h ** 2) < 0.02

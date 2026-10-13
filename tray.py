@@ -134,7 +134,7 @@ def run_console_tool(name: str) -> int:
         import importlib
         sys.path.insert(0, str(base_dir() / "tools"))
         sys.argv = [name] + sys.argv[2:]
-        importlib.import_module({"restore": "restore", "verify": "verify_backup"}[name]).main()
+        importlib.import_module({"restore": "restore", "verify": "verify_backup", "selftest": "selftest"}[name]).main()
     except SystemExit as e:
         code = 0 if e.code in (None, 0) else 1
         if e.code not in (None, 0):
@@ -150,7 +150,7 @@ def run_console_tool(name: str) -> int:
 
 
 def main() -> int:
-    if len(sys.argv) > 1 and sys.argv[1] in ("restore", "verify"):
+    if len(sys.argv) > 1 and sys.argv[1] in ("restore", "verify", "selftest"):
         return run_console_tool(sys.argv[1])
     import pystray
     settings = load_settings()

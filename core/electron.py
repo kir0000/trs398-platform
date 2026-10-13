@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Sequence
 
-from scipy.interpolate import CubicSpline
 
 from core.photon import OutOfRangeError, k_pol, k_s, k_tp, mean
 
@@ -37,6 +36,34 @@ def chamber(chamber_id: int) -> dict:
     raise KeyError(f"unknown chamber id {chamber_id}")
 
 
+def natural_cubic_spline(xs: Sequence[float], ys: Sequence[float], x: float) -> float:
+    """Value at x of the natural cubic spline (second derivative zero at both ends) through the nodes (xs increasing).
+    The same curve as scipy.interpolate.CubicSpline(xs, ys, bc_type="natural"), without the heavy dependency."""
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    # the second derivatives m of the nodes: a tridiagonal system solved by the Thomas algorithm
+    m = [0.0] * n
+    if n > 2:
+        a, b, c, d = [0.0] * n, [1.0] * n, [0.0] * n, [0.0] * n
+        for i in range(1, n - 1):
+            a[i], b[i], c[i] = h[i - 1], 2 * (h[i - 1] + h[i]), h[i]
+            d[i] = 6 * ((ys[i + 1] - ys[i]) / h[i] - (ys[i] - ys[i - 1]) / h[i - 1])
+        for i in range(1, n):
+            w = a[i] / b[i - 1]
+            b[i] -= w * c[i - 1]
+            d[i] -= w * d[i - 1]
+        m[n - 1] = d[n - 1] / b[n - 1]
+        for i in range(n - 2, -1, -1):
+            m[i] = (d[i] - c[i] * m[i + 1]) / b[i]
+    k = n - 2
+    for i in range(n - 1):
+        if x <= xs[i + 1]:
+            k = i
+            break
+    t0, t1 = xs[k + 1] - x, x - xs[k]
+    return (m[k] * t0 ** 3 + m[k + 1] * t1 ** 3) / (6 * h[k]) + (ys[k] / h[k] - m[k] * h[k] / 6) * t0 + (ys[k + 1] / h[k] - m[k + 1] * h[k] / 6) * t1
+
+
 def _spline_kq(row: Optional[Sequence[Optional[float]]], r50: float) -> float:
     """Natural cubic spline over the nodes that have data; R50 must lie inside the covered range."""
     if not row:
@@ -48,7 +75,7 @@ def _spline_kq(row: Optional[Sequence[Optional[float]]], r50: float) -> float:
     xs, ys = zip(*pts)
     if r50 < xs[0] - 1e-6 or r50 > xs[-1] + 1e-6:
         raise OutOfRangeError(f"R50 = {r50:.3f} is outside the covered range {xs[0]}-{xs[-1]} g/cm2")
-    return float(CubicSpline(xs, ys, bc_type="natural")(min(max(r50, xs[0]), xs[-1])))
+    return natural_cubic_spline(xs, ys, min(max(r50, xs[0]), xs[-1]))
 
 
 def k_q_co60(chamber_id: int, r50: float) -> float:

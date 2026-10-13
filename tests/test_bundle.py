@@ -10,3 +10,11 @@ def test_the_spec_lists_existing_files_and_the_guide():
     sources = re.findall(r'\("([^"]+)", "[^"]+"\)', spec)
     assert sources and all((ROOT / s).exists() for s in sources), [s for s in sources if not (ROOT / s).exists()]
     assert "docs/USER_GUIDE.md" in sources and "docs/USER_GUIDE.en.md" in sources       # the Help page reads them
+
+
+def test_selftest_agrees_with_the_worksheets(capsys):
+    import sys
+    sys.path.insert(0, str(ROOT / "tools"))
+    import selftest
+    selftest.main()
+    assert "OK: the calculation agrees" in capsys.readouterr().out

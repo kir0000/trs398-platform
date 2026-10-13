@@ -39,6 +39,7 @@ Make a backup before updating (icon menu). If the new version changes the struct
 | "PDF unavailable" | Edge or Chrome is needed. Fallback: the "Print" button → "Save as PDF". |
 | The antivirus removed or blocked the program | Add the program folder to the exceptions. The build is not signed. |
 | Forgot the administrator password | Another administrator resets it in "Users". If there is only one: restore a backup where the password is known, or start with an empty database (see README). |
+| I want to be sure the calculation is right | The Start menu shortcut “Check the calculation” (or `TRS398.exe selftest`) calculates the two worked examples of the IAEA worksheets and compares with them; the result is also saved in `selftest.txt` in the data folder. |
 | The data must be brought back | Icon menu → "Restore from a backup…". |
 
 ## Running from the sources (for developers)
