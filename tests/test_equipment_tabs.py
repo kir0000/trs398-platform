@@ -3,10 +3,9 @@ import datetime as dt
 import sys
 from pathlib import Path
 
-import psycopg
+from tests import sqlcompat
 import pytest
-from psycopg.rows import dict_row
-
+from tests.sqlcompat import dict_row
 from tests.test_app import client, post, q, world  # noqa: F401  (fixtures are discovered here)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -127,7 +126,7 @@ def test_a_beam_with_only_drafts_is_deleted_together_with_them(world, client):
     assert q(client, "SELECT count(*) FROM beams WHERE id=%s", bid)[0][0] == 0
     assert q(client, "SELECT count(*) FROM measurement_sessions WHERE id=%s", sid)[0][0] == 0
     assert q(client, "SELECT count(*) FROM results WHERE session_id=%s", sid)[0][0] == 0
-    assert q(client, "SELECT details->>'drafts' FROM audit_log WHERE action='delete_beam_with_drafts' AND entity_id=%s", str(bid))[0][0] == "1"
+    assert q(client, "SELECT json_extract(details, '$.drafts') FROM audit_log WHERE action='delete_beam_with_drafts' AND entity_id=%s", str(bid))[0][0] == 1
 
 
 def test_approved_records_are_history_and_block_the_deletion(world, client):
@@ -138,16 +137,18 @@ def test_approved_records_are_history_and_block_the_deletion(world, client):
     assert q(client, "SELECT count(*) FROM beams WHERE id=%s", bid)[0][0] == 1
     assert post(adm, f"/measurements/{sid}/void", {"reason": "пучок введён по ошибке"}, page=f"/measurements/{sid}").status_code == 303
     assert post(adm, f"/equipment/beam/{bid}/purge", page="/equipment").status_code == 409                  # an annulled record is history as well
-    import psycopg
-    with psycopg.connect(client.app_url) as conn:                                                        # nor can the function be abused
-        with pytest.raises(psycopg.errors.RaiseException):
-            conn.execute("SELECT delete_beam_with_drafts(%s, 1, true)", (bid,))
+    from tests import sqlcompat
+    from app import dbops
+    with sqlcompat.connect(client.app_url) as conn:                                                        # nor can the function be abused
+        with pytest.raises(dbops.MaintenanceError):
+            conn.row_factory = __import__('app.db', fromlist=['x'])._dict_row
+            dbops.delete_beam_with_drafts(conn, bid, 1, True)
 
 
 def test_imported_journal_rows_need_a_separate_confirmation(world, client):
     bid, sid = beam_with_records(world, client, 24)
-    import psycopg
-    with psycopg.connect(client.owner_url) as conn:
+    from tests import sqlcompat
+    with sqlcompat.connect(client.owner_url) as conn:
         conn.execute("INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, source_file) VALUES (%s, '2025-01-01', 0.1, 0.01, 'test')", (bid,))
         conn.commit()
     adm = world["adm"]

@@ -5,7 +5,7 @@ determination (editable on the sheet).
 """
 import re
 
-import psycopg
+from tests import sqlcompat
 import pytest
 
 from core import photon as ph
@@ -77,7 +77,7 @@ def test_the_browser_cannot_override_equipment_values(world, client):
                 dict(dose_rate="1400", field_size="10 х 10", phantom="водный", zmax="1,3"), page=PG).status_code == 303
     sid = make(world, calibration_id=cid, t0="10", p0="90", field_size="подделка", dose_rate="1", cal_depth="99",
                polarity_cal="+", phantom="вода-подделка")
-    form = q(client, "SELECT extra->'form' FROM measurement_sessions WHERE id=%s", sid)[0][0]
+    form = q(client, "SELECT extra FROM measurement_sessions WHERE id=%s", sid)[0][0]["form"]
     assert (form["t0"], form["p0"], form["cal_depth"], form["polarity_cal"]) == ("21", "101,3", "5", "−")
     assert (form["field_size"], form["dose_rate"], form["phantom"], form["zmax"]) == ("10 х 10", "1400", "водный", "1,3")
     assert form["electrometer_model"] == "PTW UNIDOS" and form["electrometer_sn"] == "E-1" and form["cal_pol_corrected"] == "1"
@@ -375,9 +375,9 @@ def test_protocol_numbers_are_sequential_unique_automatic_and_fixed(world, clien
     # a number cannot be typed in, nor changed afterwards (not even by an owner-level update)
     sid = make(world, calibration_id=cid, measured_on="2025-03-12", protocol_no="2025-0001")
     assert q(client, "SELECT protocol_no FROM measurement_sessions WHERE id=%s", sid)[0][0] != "2025-0001"
-    with psycopg.connect(client.owner_url) as conn:
-        conn.execute("UPDATE measurement_sessions SET protocol_no = '1999-0001' WHERE id = %s", (ids[0],))
-        conn.commit()
+    with sqlcompat.connect(client.owner_url) as conn:
+        with pytest.raises(sqlcompat.errors.RaiseException):
+            conn.execute("UPDATE measurement_sessions SET protocol_no = '1999-0001' WHERE id = %s", (ids[0],))
     assert q(client, "SELECT protocol_no FROM measurement_sessions WHERE id=%s", ids[0])[0][0] == nums[0]
     # the number is shown in the list, on the record page, on the printed protocol and in the form of a draft
     assert nums[0] in world["phys"].get("/measurements").text

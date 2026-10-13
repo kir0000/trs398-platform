@@ -4,9 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-import psycopg
 import pytest
-from psycopg.rows import dict_row
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -29,25 +27,15 @@ def read_env():
 
 
 @pytest.fixture()
-def conn():
-    env = read_env()
-    host = os.environ.get("TRS_TEST_DB_HOST", "127.0.0.1:5433")
-    url = f"postgresql://trs_owner:{env.get('TRS_OWNER_PASSWORD', '')}@{host}"
-    try:
-        admin = psycopg.connect(url + "/postgres", autocommit=True, connect_timeout=3)
-    except Exception as e:                                           # pragma: no cover
-        pytest.skip(f"Postgres not reachable: {e}")
-    admin.execute(f"DROP DATABASE IF EXISTS {DB} WITH (FORCE)")
-    admin.execute(f"CREATE DATABASE {DB}")
-    with psycopg.connect(f"{url}/{DB}", autocommit=True) as c:
-        for f in sorted((ROOT / "db" / "init").glob("*.sql")):
-            c.execute(f.read_text(encoding="utf-8"))
-    c = psycopg.connect(f"{url}/{DB}", row_factory=dict_row)
+def conn(tmp_path):
+    from app import db as appdb
+    c = appdb.connect(tmp_path / "seed_test.db")
+    appdb.migrate(c)
     services.seed_chambers(c)
     # the user's own equipment: a linac with real imported history on its 6 MV FFF beam, and an empty one
     c.execute("INSERT INTO linacs(name) VALUES ('TrueBeam'), ('Versa HD')")
     lid = c.execute("SELECT id FROM linacs WHERE name='TrueBeam'").fetchone()["id"]
-    bid = c.execute("INSERT INTO beams(linac_id, modality, nominal_energy, fff) VALUES (%s,'photon',6,true) RETURNING id",
+    bid = c.execute("INSERT INTO beams(linac_id, modality, nominal_energy, fff) VALUES (%s,'photon',6,1) RETURNING id",
                     (lid,)).fetchone()["id"]
     for i in range(5):
         c.execute("INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, source_file) "
@@ -55,8 +43,6 @@ def conn():
     c.commit()
     yield c
     c.close()
-    admin.execute(f"DROP DATABASE IF EXISTS {DB} WITH (FORCE)")
-    admin.close()
 
 
 def one(c, sql, *a):
@@ -104,8 +90,8 @@ def test_seed_fills_equipment_and_data_like_the_templates(conn):
                         WHERE c.calibrated_on > s.measured_on OR c.valid_until < s.measured_on""")["n"] == 0
     users = {r["login"]: r["is_active"] for r in conn.execute("SELECT login, is_active FROM users").fetchall()}
     assert users == {"demo_phys": False, "demo_rev": False}                    # nobody can log in as them
-    dates = one(conn, "SELECT min(measured_on) AS a, max(measured_on) AS b FROM measurement_sessions")
-    assert (dates["a"], dates["b"]) == (dt.date(2024, 10, 15), dt.date(2026, 9, 15))
+    dates = one(conn, "SELECT min(measured_on) AS a_on, max(measured_on) AS b_on FROM measurement_sessions")
+    assert (dates["a_on"], dates["b_on"]) == (dt.date(2024, 10, 15), dt.date(2026, 9, 15))
 
 
 def test_the_series_look_like_real_output_data(conn):
@@ -194,7 +180,7 @@ def test_default_end_never_lies_in_the_future(conn):
     assert seed_demo.default_end(dt.date(2026, 1, 3)) == dt.date(2025, 12, 1)
     seed_demo.seed(conn, 3)                                                         # default end
     conn.commit()
-    assert one(conn, "SELECT max(measured_on) AS d FROM measurement_sessions")["d"] <= dt.date.today()
+    assert one(conn, "SELECT max(measured_on) AS d_on FROM measurement_sessions")["d_on"] <= dt.date.today()
 
 
 def test_seeded_records_fill_the_edit_form_from_their_columns(conn):
@@ -229,7 +215,7 @@ def test_a_users_replacement_draft_survives_removal_and_does_not_block_reseeding
     again = seed_demo.seed(conn, 3, END)
     conn.commit()
     assert "Versa HD: electron 6" in " ".join(again["beams"]) or any("electron 6" in b for b in again["beams"])
-    assert one(conn, "SELECT count(*) AS n FROM measurement_sessions WHERE extra->>'demo' = 'true'")["n"] > 0
+    assert one(conn, "SELECT count(*) AS n FROM measurement_sessions WHERE json_extract(extra, '$.demo') IN (1, 'true')")["n"] > 0
     cal = one(conn, "SELECT polarity_cal, cal_depth FROM calibrations WHERE id = %s", row["calibration_id"])
     assert cal["polarity_cal"] is not None and float(cal["cal_depth"]) == 5.0
 

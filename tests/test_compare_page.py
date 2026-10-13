@@ -4,8 +4,7 @@ import json
 import random
 import re
 
-import psycopg
-
+from tests import sqlcompat
 from tests.test_app import client, post, q, world  # noqa: F401  (fixtures are discovered here)
 
 PG = "/measurements"
@@ -22,7 +21,7 @@ def make_linac(world_, client_, name, beams, shift_month=None):
         ids[(modality, energy, fff)] = q(client_, "SELECT id FROM beams WHERE linac_id=%s AND modality=%s AND nominal_energy=%s AND fff=%s",
                                          lid, modality, energy, fff)[0][0]
     start = dt.date(2025, 7, 15)
-    with psycopg.connect(client_.owner_url) as conn:
+    with sqlcompat.connect(client_.owner_url) as conn:
         for k, bid in enumerate(ids.values()):
             rng = random.Random(500 + k)
             for i in range(14):

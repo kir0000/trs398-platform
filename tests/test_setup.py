@@ -7,8 +7,9 @@ from tests.test_app import client, q, token  # noqa: F401  (fixture is discovere
 
 
 def fresh_app(client):
-    import psycopg
-    with psycopg.connect(client.owner_url, autocommit=True) as conn:
+    from tests import sqlcompat
+    with sqlcompat.connect(client.owner_url, autocommit=True) as conn:
+        conn.execute("INSERT INTO _maintenance(k) VALUES ('purge')")
         conn.execute("DELETE FROM users")                              # the bootstrap administrator of the fixture: back to a new database
     from app.main import app
     c = TestClient(app, follow_redirects=False)

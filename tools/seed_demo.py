@@ -11,8 +11,7 @@ occasional jump out of tolerance and a re-adjustment afterwards.
     python tools/seed_demo.py              # add demo data (idempotent, beams with real data are skipped)
     python tools/seed_demo.py --remove     # remove only what this script added
 
-Connection: DATABASE_URL, or built from TRS_OWNER_PASSWORD in .env (owner role: seeding writes approved records
-directly, which the application role cannot do).
+Connection: the database of the program (TRS_DB, else data/trs398.db); seeding writes approved records directly.
 """
 from __future__ import annotations
 
@@ -25,9 +24,8 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-import psycopg
-from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb
+from app import db as appdb
+from app.db import Jsonb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import services                                         # noqa: E402
@@ -213,7 +211,7 @@ class Seeder:
         A draft, a submitted or a returned record of the user does not count: it is work in progress."""
         real_legacy = self.one("SELECT count(*) AS n FROM legacy_journal WHERE beam_id = %s AND NOT is_demo", (beam_id,))["n"]
         busy = self.one("""SELECT count(*) AS n FROM measurement_sessions WHERE beam_id = %s
-                           AND (extra->>'demo' = 'true' OR status IN ('approved', 'superseded'))""", (beam_id,))["n"]
+                           AND (json_extract(extra, '$.demo') IN (1, 'true') OR status IN ('approved', 'superseded'))""", (beam_id,))["n"]
         return real_legacy == 0 and busy == 0
 
     # ---- one record
@@ -335,50 +333,40 @@ def seed(conn, months: int = 24, end: dt.date | None = None):
 
 def remove(conn):
     """Delete the demo measurements and whatever the seeding created (never the user's own equipment or data)."""
+    conn.execute("INSERT OR IGNORE INTO _maintenance(k) VALUES ('purge')")          # the guard triggers let this function remove history
     ids = {k: set() for k in ("beams", "calibrations", "units", "electrometers", "users", "linacs", "linac_fields", "beam_fields")}
     for row in conn.execute("SELECT details FROM audit_log WHERE action = 'seed_demo' ORDER BY id").fetchall():
         for k in ids:
             ids[k].update(row["details"].get(k, []))
-    sess = [r["id"] for r in conn.execute("SELECT id FROM measurement_sessions WHERE extra->>'demo' = 'true'").fetchall()]
+    sess = [r["id"] for r in conn.execute("SELECT id FROM measurement_sessions WHERE json_extract(extra, '$.demo') IN (1, 'true')").fetchall()]
     # a record of the user that replaces a demo record stays; it just loses the link to the removed original
-    conn.execute("UPDATE measurement_sessions SET supersedes_id = NULL WHERE supersedes_id = ANY(%s) OR id = ANY(%s)", (sess, sess))
-    conn.execute("DELETE FROM results WHERE session_id = ANY(%s)", (sess,))
-    conn.execute("DELETE FROM measurement_sessions WHERE id = ANY(%s)", (sess,))
+    conn.execute("UPDATE measurement_sessions SET supersedes_id = NULL WHERE supersedes_id IN (SELECT value FROM json_each(%s)) OR id IN (SELECT value FROM json_each(%s))", (sess, sess))
+    conn.execute("DELETE FROM results WHERE session_id IN (SELECT value FROM json_each(%s))", (sess,))
+    conn.execute("DELETE FROM measurement_sessions WHERE id IN (SELECT value FROM json_each(%s))", (sess,))
     unused = {
-        "calibrations": "DELETE FROM calibrations c WHERE c.id = ANY(%s) AND NOT EXISTS "
-                        "(SELECT 1 FROM measurement_sessions s WHERE s.calibration_id = c.id)",
-        "units": "DELETE FROM chamber_units u WHERE u.id = ANY(%s) AND NOT EXISTS "
-                 "(SELECT 1 FROM calibrations c WHERE c.chamber_unit_id = u.id)",
-        "electrometers": "DELETE FROM electrometers e WHERE e.id = ANY(%s) AND NOT EXISTS "
-                         "(SELECT 1 FROM calibrations c WHERE c.electrometer_id = e.id)",
+        "calibrations": "DELETE FROM calibrations WHERE id IN (SELECT value FROM json_each(%s)) AND NOT EXISTS "
+                        "(SELECT 1 FROM measurement_sessions s WHERE s.calibration_id = calibrations.id)",
+        "units": "DELETE FROM chamber_units WHERE id IN (SELECT value FROM json_each(%s)) AND NOT EXISTS "
+                 "(SELECT 1 FROM calibrations c WHERE c.chamber_unit_id = chamber_units.id)",
+        "electrometers": "DELETE FROM electrometers WHERE id IN (SELECT value FROM json_each(%s)) AND NOT EXISTS "
+                         "(SELECT 1 FROM calibrations c WHERE c.electrometer_id = electrometers.id)",
     }
     for key, sql in unused.items():
         conn.execute(sql, (list(ids[key]),))
-    conn.execute("DELETE FROM spc_baseline WHERE beam_id = ANY(%s)", (list(ids["beams"]),))
-    conn.execute("""DELETE FROM beams b WHERE b.id = ANY(%s) AND NOT EXISTS (SELECT 1 FROM measurement_sessions s WHERE s.beam_id = b.id)
-                    AND NOT EXISTS (SELECT 1 FROM legacy_journal j WHERE j.beam_id = b.id)""", (list(ids["beams"]),))
-    conn.execute("UPDATE linacs SET model = NULL, serial_no = NULL WHERE id = ANY(%s)", (list(ids["linac_fields"]),))
+    conn.execute("DELETE FROM spc_baseline WHERE beam_id IN (SELECT value FROM json_each(%s))", (list(ids["beams"]),))
+    conn.execute("""DELETE FROM beams WHERE id IN (SELECT value FROM json_each(%s)) AND NOT EXISTS (SELECT 1 FROM measurement_sessions s WHERE s.beam_id = beams.id)
+                    AND NOT EXISTS (SELECT 1 FROM legacy_journal j WHERE j.beam_id = beams.id)""", (list(ids["beams"]),))
+    conn.execute("UPDATE linacs SET model = NULL, serial_no = NULL WHERE id IN (SELECT value FROM json_each(%s))", (list(ids["linac_fields"]),))
     conn.execute("""UPDATE beams SET dose_rate_mu = NULL, field_size = NULL, phantom = NULL, c_pl = NULL, h_pl = NULL,
-                    zmax = NULL WHERE id = ANY(%s)""", (list(ids["beam_fields"]),))
-    conn.execute("""DELETE FROM linacs l WHERE l.id = ANY(%s) AND NOT EXISTS (SELECT 1 FROM beams b WHERE b.linac_id = l.id)""",
+                    zmax = NULL WHERE id IN (SELECT value FROM json_each(%s))""", (list(ids["beam_fields"]),))
+    conn.execute("""DELETE FROM linacs WHERE id IN (SELECT value FROM json_each(%s)) AND NOT EXISTS (SELECT 1 FROM beams b WHERE b.linac_id = linacs.id)""",
                  (list(ids["linacs"]),))
-    conn.execute("""DELETE FROM users u WHERE u.login IN ('demo_phys', 'demo_rev') AND NOT EXISTS
-                    (SELECT 1 FROM measurement_sessions s WHERE s.created_by = u.id OR s.approved_by = u.id)""")
+    conn.execute("""DELETE FROM users WHERE login IN ('demo_phys', 'demo_rev') AND NOT EXISTS
+                    (SELECT 1 FROM measurement_sessions s WHERE s.created_by = users.id OR s.approved_by = users.id)""")
+    conn.execute("DELETE FROM _maintenance WHERE k = 'purge'")
     conn.execute("INSERT INTO audit_log(action, entity, details) VALUES ('remove_demo', 'seed', %s)",
                  (Jsonb({"sessions_removed": len(sess)}),))
     return len(sess)
-
-
-def database_url() -> str:
-    if os.environ.get("DATABASE_URL"):
-        return os.environ["DATABASE_URL"]
-    env = {}
-    path = Path(__file__).resolve().parent.parent / ".env"
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if "=" in line and not line.startswith("#"):
-            k, v = line.split("=", 1)
-            env[k.strip()] = v.strip()
-    return f"postgresql://trs_owner:{env['TRS_OWNER_PASSWORD']}@127.0.0.1:5433/trs398"
 
 
 def main():
@@ -387,7 +375,8 @@ def main():
     ap.add_argument("--months", type=int, default=24)
     ap.add_argument("--end", type=dt.date.fromisoformat, default=None, help="month of the last record (default: the latest month already past its 15th)")
     a = ap.parse_args()
-    with psycopg.connect(database_url(), row_factory=dict_row) as conn:
+    with appdb.connect() as conn:
+        appdb.migrate(conn)
         services.seed_chambers(conn)
         if a.remove:
             print(f"removed {remove(conn)} demo measurements")

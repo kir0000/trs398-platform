@@ -5,10 +5,9 @@ import re
 import sys
 from pathlib import Path
 
-import psycopg
+from tests import sqlcompat
 import pytest
-from psycopg.rows import dict_row
-
+from tests.sqlcompat import dict_row
 from app import i18n
 from tests.test_app import client, q, world  # noqa: F401  (fixtures are discovered here)
 
@@ -73,7 +72,7 @@ def pages(client, world):
     """Every kind of page of a database with demo data, fetched in English."""
     sys.path.insert(0, str(ROOT / "tools"))
     import seed_demo
-    with psycopg.connect(client.owner_url, row_factory=dict_row) as conn:
+    with sqlcompat.connect(client.owner_url, row_factory=dict_row) as conn:
         seed_demo.seed(conn, 12, dt.date(2026, 9, 1))
         conn.commit()
     adm = world["adm"]

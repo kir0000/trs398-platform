@@ -43,8 +43,8 @@ def test_periods_are_added_listed_and_removed(world, client):
     assert q(client, "SELECT count(*) FROM spc_baseline WHERE beam_id=%s", bid)[0][0] == 2
     assert post(adm, "/trends/baseline", dict(beam_id=bid, from_date="2025-01-01", to_date="2025-08-01"), page="/measurements").status_code == 303
     assert q(client, "SELECT count(*) FROM spc_baseline WHERE beam_id=%s", bid)[0][0] == 2          # the same start only moves the end
-    import psycopg
-    with psycopg.connect(client.owner_url) as conn:                  # a journal for the page to draw
+    from tests import sqlcompat
+    with sqlcompat.connect(client.owner_url) as conn:                  # a journal for the page to draw
         for i in range(8):
             conn.execute("INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, source_file) VALUES (%s, %s, %s, %s, 'test')",
                          (bid, date(2024, 1, 1) + timedelta(days=60 * i), 0.1 * (i % 3), 0.01))
@@ -56,6 +56,6 @@ def test_periods_are_added_listed_and_removed(world, client):
     assert post(adm, "/trends/baseline/delete", dict(id=row), page="/measurements").status_code == 303
     assert post(adm, "/trends/baseline/delete", dict(id=row), page="/measurements").status_code == 404
     assert q(client, "SELECT count(*) FROM spc_baseline WHERE beam_id=%s", bid)[0][0] == 1
-    with psycopg.connect(client.owner_url) as conn:
+    with sqlcompat.connect(client.owner_url) as conn:
         conn.execute("DELETE FROM spc_baseline")
         conn.commit()
