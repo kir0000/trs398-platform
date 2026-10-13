@@ -42,14 +42,24 @@ def catalog() -> dict[str, str]:
     return {_WS.sub(" ", k.strip()): v.strip() for k, v in raw.items() if v and v.strip()}
 
 
+_LETTER = re.compile(r"[А-Яа-яЁё]")
+
+
+def _key_pattern(key: str) -> str:
+    """The regular expression of one phrase. A phrase never matches inside a longer Russian word, but that matters only at its
+    own edges that are letters: a phrase that ends with a quote or a bracket may stand right before a variable that starts
+    with a Russian letter (статус «{{ название }}»). The same for a hyphenated Russian compound (Демо-физик)."""
+    head = r"(?<![А-Яа-яЁё])(?<![А-Яа-яЁё]-)" if _LETTER.match(key[0]) else ""
+    tail = r"(?![А-Яа-яЁё])(?!-[А-Яа-яЁё])" if _LETTER.match(key[-1]) else ""
+    return head + re.escape(key) + tail
+
+
 @lru_cache(maxsize=1)
 def _matcher() -> re.Pattern | None:
     keys = sorted(catalog(), key=len, reverse=True)
     if not keys:
         return None
-    # a phrase never matches inside a longer Russian word (no Cyrillic letter right before or after it)
-    # (also not inside a hyphenated Russian compound such as Демо-физик: a whole-compound phrase has to be in the catalog)
-    return re.compile("(?<![А-Яа-яЁё])(?<![А-Яа-яЁё]-)(?:" + "|".join(re.escape(k) for k in keys) + ")(?![А-Яа-яЁё])(?!-[А-Яа-яЁё])")
+    return re.compile("|".join(_key_pattern(k) for k in keys))
 
 
 def reload() -> None:
