@@ -18,6 +18,11 @@ from pathlib import Path
 
 APP_NAME = "TRS398"
 
+# a program without a console window (the released build) has no stdin/stdout/stderr: give the libraries something to write to
+for _name, _mode in (("stdin", "r"), ("stdout", "w"), ("stderr", "w")):
+    if getattr(sys, _name) is None:
+        setattr(sys, _name, open(os.devnull, _mode, encoding="utf-8"))
+
 
 def base_dir() -> Path:
     return Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
@@ -92,7 +97,7 @@ class Server:
     def __init__(self, port: int, lan: bool):
         import uvicorn
         from app.main import app
-        self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=port, log_level="warning"))
+        self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=port, log_level="warning", log_config=None))
         self.thread = threading.Thread(target=self.server.run, name="trs398-server", daemon=True)
 
     def start(self):
@@ -211,6 +216,27 @@ def main() -> int:
     return 0
 
 
+def report_crash() -> None:
+    """A failure at the start: the text goes to crash.log in the data folder and into a message box (no console to show it)."""
+    import traceback
+    text = traceback.format_exc()
+    try:
+        (Path(os.environ["TRS_DATA"]) / "crash.log").write_text(text, encoding="utf-8")
+    except OSError:
+        pass
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, f"TRS-398 не запустилась / failed to start."+chr(10)*2+f"{text[-900:]}"+chr(10)*2+f"File: {Path(os.environ['TRS_DATA']) / 'crash.log'}", "TRS-398", 0x10)
+    except Exception:                                       # noqa: BLE001
+        pass
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception:                                       # noqa: BLE001
+        report_crash()
+        sys.exit(1)
 
