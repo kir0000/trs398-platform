@@ -1,6 +1,6 @@
 # User guide
 
-A platform for the determination of absolute dose according to IAEA TRS-398 Rev.1 (photons and electrons). Address: `https://localhost:8443` (with HTTPS on) or `http://localhost:8000`.
+A platform for the determination of absolute dose according to IAEA TRS-398 Rev.1 (photons and electrons). Address: `http://localhost:8000` on the computer with the program, from other computers of the network: the address shown by the tray icon menu (see “Network access” in the README).
 
 ## Roles
 
