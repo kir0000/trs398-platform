@@ -5,7 +5,7 @@ The department's servers that are medical devices are not used for this: any ord
 
 ## Switch on
 
-1. On the laptop with the program right-click the tray icon and tick **"Allow connections from other computers"**.
+1. On the laptop with the program tick **"Allow connections from other computers"**: in the tray icon menu or on the **"Settings"** page (administrator). The port is changed there too.
    The program shows an address like `http://192.168.1.20:8000`.
 2. At the first switching on Windows asks for the firewall permission: tick **"Private networks"** and click "Allow".
    This is the only action that needs Windows administrator rights (to allow incoming connections for the program). If you do not have them, ask the administrator of the computer to click "Allow" once or to create a rule for port 8000. Work on one laptop (`http://localhost:8000`) needs no administrator rights.

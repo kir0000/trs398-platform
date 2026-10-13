@@ -21,7 +21,7 @@ from app.notation import sym, sym_plain
 from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
-from app import applog, dbops, updates
+from app import applog, dbops, settings as app_settings, updates
 from app.pdf import PdfUnavailable, html_to_pdf
 from app.db import audit, connect, data_dir, db_path, get_db, migrate, session_secret
 from app.db import has_data as db_has_data, pending as db_pending
@@ -1739,6 +1739,35 @@ def purge_counts(conn):
     return conn.execute("""SELECT (SELECT count(*) FROM measurement_sessions) AS sessions,
         (SELECT count(*) FROM results) AS results, (SELECT count(*) FROM legacy_journal) AS legacy,
         (SELECT count(*) FROM users) AS users, (SELECT count(*) FROM audit_log) AS audit""").fetchone()
+
+
+ENV_SETTINGS = {"TRS_LANG": "language", "BACKUP_HOUR": "backup_hour", "BACKUP_KEEP_DAYS": "backup_keep_days", "BACKUP_COPY_DIR": "backup_copy_dir"}
+
+
+def settings_context(s: dict, **extra):
+    return dict(s=s, lan_url=app_settings.lan_address(int(s["port"])), copy_dir=str(backups.copy_dir() or ""),
+                env_overrides=[name for name in ENV_SETTINGS if os.environ.get(name)], **extra)
+
+
+@app.get("/admin/settings", response_class=HTMLResponse)
+def settings_page(request: Request, saved: str = "", user=Depends(require("admin"))):
+    return render(request, "admin_settings.html", user, **settings_context(app_settings.load(), saved=saved == "1", errors=[]))
+
+
+@app.post("/admin/settings", response_class=HTMLResponse)
+async def settings_save(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+    form = await request.form()
+    check_csrf(request, form)
+    values, errors = app_settings.validate(dict(form))
+    current = app_settings.load()
+    if errors:
+        return render(request, "admin_settings.html", user, status_code=422,
+                      **settings_context({**current, **values, "lan": values["lan"]}, saved=False, errors=errors))
+    new = {**current, **values}                                  # the folder of the second copy has its own form on the Backups page
+    app_settings.save(new)
+    changed = {k: new[k] for k in values if new[k] != current.get(k)}
+    audit(conn, user["id"], "settings_changed", "settings", None, changed)
+    return RedirectResponse("/admin/settings?saved=1", status_code=303)
 
 
 @app.get("/admin/backups", response_class=HTMLResponse)

@@ -29,7 +29,14 @@ _JS_STRING = re.compile(r"""'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)\"""")
 
 
 def default_lang() -> str:
-    code = os.environ.get("TRS_LANG", "ru").strip().lower()
+    """TRS_LANG, else the language of the settings file, else Russian."""
+    code = os.environ.get("TRS_LANG", "").strip().lower()
+    if not code:
+        try:
+            from app import settings
+            code = str(settings.load().get("language", "ru")).strip().lower()
+        except Exception:                                    # noqa: BLE001  (a damaged file must not break the pages)
+            code = "ru"
     return code if code in LANGS else "ru"
 
 
