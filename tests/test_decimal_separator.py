@@ -4,10 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-import psycopg
+from tests import sqlcompat
 import pytest
-from psycopg.rows import dict_row
-
+from tests.sqlcompat import dict_row
 from app import i18n
 from tests.test_app import client, post, q, world  # noqa: F401  (fixtures are discovered here)
 
@@ -50,7 +49,7 @@ def test_english_keeps_the_point_and_the_two_conversions_do_not_fight():
 def ru_pages(client, world):
     sys.path.insert(0, str(ROOT / "tools"))
     import seed_demo
-    with psycopg.connect(client.owner_url, row_factory=dict_row) as conn:
+    with sqlcompat.connect(client.owner_url, row_factory=dict_row) as conn:
         seed_demo.seed(conn, 12, dt.date(2026, 9, 1))
         conn.commit()
     adm = world["adm"]

@@ -61,8 +61,8 @@ def test_the_first_approved_record_offers_quality_and_mu_like_the_saved_referenc
     page = f"/measurements/{sid}"
     post(world["phys"], f"{page}/submit", page=page)
     post(world["rev"], f"{page}/approve", {"comment": "ok"}, page=page)
-    import psycopg
-    with psycopg.connect(client.owner_url) as conn:
+    from tests import sqlcompat
+    with sqlcompat.connect(client.owner_url) as conn:
         conn.execute("DELETE FROM beam_reference")
         conn.commit()
     got = world["phys"].get(ref_url(world)).json()

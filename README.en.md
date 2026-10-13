@@ -1,59 +1,51 @@
-# TRS-398 Rev.1: determination of absolute dose
+# TRS-398 Rev.1: absolute dose determination
 
 *Русская версия: [README.md](README.md)*
 
-A web platform for calculating absorbed dose to water according to TRS-398 Rev.1 (high-energy photons and electrons):
-a PostgreSQL database, roles, approval by a second person, output trends (control charts, CUSUM) and printing of the
-protocol as a PDF in the form of the “Calculation” worksheet. The interface and the start scripts work in **English and Russian**
-(the language switch EN / RU is in the top bar of the program).
+A program for calculating the absorbed dose to water by TRS-398 Rev.1 (high-energy photons and electrons): a single-file database,
+roles, approval by a second person, output trends (control charts, CUSUM) and a PDF protocol in the form of the "Расчёт" worksheet.
+It runs on an ordinary Windows laptop, **without Docker and without installing a database**. The interface is in **Russian and English** (RU / EN switch at the top).
 
-> For educational and research use. The program is not a certified medical device: every result must be checked
-> independently. See [NOTICE.md](NOTICE.md).
+> Educational and research use. The program is not a certified medical device: every result must be checked independently. See [NOTICE.md](NOTICE.md).
 
-## Installation in three steps (Windows)
+## Installation (Windows 10/11)
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and start it (details with settings: [docs/INSTALL.en.md](docs/INSTALL.en.md)).
-2. Download the project (on GitHub: **Code → Download ZIP**, unpack into a convenient folder, for example `C:\trs398`) or `git clone`.
-3. Double-click **`start.bat`**. It checks the computer, asks for the language (English or Russian), and the first start takes a few minutes
-   (the application is built); then http://localhost:8000 opens by itself and asks **which login and password the administrator should have**:
-   choose your own. Then: “Users” (add physicists and reviewers), “Equipment” (linac, beams, chamber and calibration), “Measurements”.
+1. From the **Releases** page download `TRS398-setup-….exe` and run it (no administrator rights needed). Without installing: `TRS398-portable-….zip`, unpack into any folder.
+2. Start **TRS-398**. An icon appears in the tray (near the clock) and `http://localhost:8000` opens in the browser.
+3. At the first start the program asks for the login and password of the administrator (choose your own). Then: "Users" (physicists and reviewers), "Equipment" (machine, beams, chamber and calibration), "Measurements".
 
-Linux/macOS: `cp .env.example .env`, set the three database passwords and `SESSION_SECRET`, then `docker compose up -d --build`.
+Windows may show a "SmartScreen" warning (the program has no paid digital signature): "More info → Run anyway".
+Details: [docs/INSTALL.en.md](docs/INSTALL.en.md), Russian: [docs/INSTALL.md](docs/INSTALL.md).
 
-| File | What it does |
-|---|---|
-| `start.bat` / `stop.bat` | start / stop (the data are kept) |
-| `lan-on.bat` / `lan-off.bat`, `https-on.bat` / `https-off.bat` (HTTPS) | open the program to the other computers of the network / close it ([docs/NETWORK.en.md](docs/NETWORK.en.md)) |
-| `backup-now.bat` | a database backup right now |
-| `restore.bat` | replace the database with a backup (see below) |
-| `update.bat` | update the program to a new version (makes a backup first) |
-| `language.bat` | choose the language of the scripts and of the program (English / Русский) |
+Tray icon menu: open the program; make a backup; data folder; restore from a backup; start with Windows;
+allow connections from other computers; exit. Closing the browser window does not stop the program, "Exit" does.
 
-One server computer, many workplaces: on the server run `lan-on.bat`, the others open `http://computer-name:8000` in the browser.
-Details and optional HTTPS: [docs/NETWORK.en.md](docs/NETWORK.en.md). A guide for physicists: [docs/USER_GUIDE.en.md](docs/USER_GUIDE.en.md) (also available inside the program under “Help”).
+**Several physicists.** The program runs on the laptop of one of them; the others open `http://laptop-name:8000` in a browser
+(switch on "Allow connections from other computers", [docs/NETWORK.en.md](docs/NETWORK.en.md)). Data and users are shared and kept on that laptop.
+A guide for physicists: [docs/USER_GUIDE.en.md](docs/USER_GUIDE.en.md) (also inside the program, item "Help").
 
-The data are stored in the Docker volume `trs398_pgdata`, the database backups are in the project's `backups` folder.
+**Where the data are.** Installed version: `%LOCALAPPDATA%\TRS398\data` ("Data folder" in the icon menu). Portable version: the folder `data` next to the program.
+The whole database is one file `trs398.db`; backups are in `backups` beside it.
 
 ### Backups and restoring
 
-The `backup` service (container `trs398_backup`) makes a backup at start-up and then every day at 02:00 (container time, UTC),
-keeps them for 30 days (`BACKUP_HOUR`, `BACKUP_KEEP_DAYS` in `.env`). Files: `backups/trs398_YYYY-MM-DD_HHMMSS.sql.gz`;
-they contain the users' data and password hashes, keep the folder private (it is not committed to git). A backup at any moment:
-the “Make a backup now” button on the **“Backups”** page (administrator menu) or `backup-now.bat`.
+The program makes a backup at start and then every day after 02:00 (the computer's time) while it is running, and keeps them for 30 days
+(`BACKUP_HOUR`, `BACKUP_KEEP_DAYS` environment variables). The files `backups\trs398_YYYY-MM-DD_HHMMSS.db.gz` contain user data and password hashes, keep the folder closed.
+A backup at any moment: the icon menu or the button "Make a backup now" on the **Backups** page. **Important:** backups lie on the same laptop, copy the `backups` folder to another medium from time to time.
 
-**Restore:** run `restore.bat` (Linux/macOS: `./restore.sh`), choose the number of the backup and type `YES`.
-The program stops, **the current database is first saved to `backups/keep`** (a wrong choice can be undone the same way),
-the database is replaced by the backup, the program starts again.
+**Restore:** the icon menu item "Restore from a backup…" (or the Start menu shortcut), choose the number of the backup, type `YES`.
+The program closes, **the current database is saved in `backups\keep` first**, then replaced by the backup. Start the program again.
 
-**Move to another computer or reinstall:** install the program (`start.bat`), put the backup file into the `backups` folder,
-run `restore.bat file_name`. The users' passwords are transferred with the backup.
+**Move to another laptop:** install the program, put the backup file into `backups`, restore it. Passwords move with the backup.
 
-**A new empty database:** stop the program (`stop.bat`), run `docker compose down -v` (deletes the data volume;
-first `backup-now.bat` and copy the file somewhere), then `start.bat`: the browser offers to create the administrator again.
+**A new empty database:** exit the program, rename or delete `trs398.db` in the data folder (make a backup first), start the program: it offers to create the administrator.
 
-To check that the latest backup is readable (it is loaded into a temporary database and compared with the working one, the working one is only read):
-`python tools/verify_backup.py`. To check that all stored results can be reproduced from the input data:
-`docker exec -i trs398_app python - < tools/recompute_check.py` (PowerShell: `Get-Content tools/recompute_check.py -Raw | docker exec -i trs398_app python -`).
+To check a backup: the Start menu shortcut "Check a backup". To check that all stored results reproduce from the raw data: `python tools/recompute_check.py` (from the sources).
+
+### Moving from version 1.x (Docker, PostgreSQL)
+
+The data are moved once by the script `tools/pg_to_sqlite.py` (needs Python and the running 1.x container; the database is only read; the script verifies every value and the trend view).
+Version 1.x stays available in the branch `v1.x` of the repository.
 
 ## What it can do
 
@@ -80,9 +72,9 @@ To check that the latest backup is readable (it is loaded into a temporary datab
 
 ## Clearing the database
 
-The administrator: the menu item “Clear database”. A scope, a reason, the password and the word `УДАЛИТЬ` (or `DELETE` in the English interface) are needed. Measurements/results and/or historical journals
-are deleted. Users, equipment, reference tables and the audit log are kept, the clearing itself is written to the audit log. The application role has no `DELETE` right: deletion is possible only through the
-protected function `admin_purge()` and only for an active administrator. Make a backup before clearing.
+Administrator: menu "Clearing the database". It needs a scope, a reason, the password and the word `DELETE` (in the Russian interface `УДАЛИТЬ`). Measurements/results and/or historical journals are deleted.
+Users, equipment, reference data and the audit log stay; the clearing itself is written to the audit log. Ordinary requests of the program cannot delete history (the database triggers protect it);
+it is possible only through the maintenance operations in `app/dbops.py` for an active administrator. Make a backup before clearing.
 
 ## Demo data
 
@@ -92,34 +84,34 @@ Versa HD has its own (PTW 30013 Farmer and IBA NACP-02, the IBA Dose1 electromet
 Each working chamber has two calibrations: a past one (expired, not available in the form) and the current one. The records are marked DEMO, made by the “Demo physicist” and approved by the “Demo reviewer”
 (disabled accounts, nobody can sign in as them). The data have something to show: an excursion out of tolerance and a re-adjustment (Versa HD 6 MV), a slow drift (TrueBeam 12 MeV),
 a common shift of several energies in one month (TrueBeam). Beams with your real data are skipped. To remove only what was added: `python tools/seed_demo.py --remove`.
-Make a backup before running it (`backup-now.bat`). The script needs `.env` with the database owner's password and a running program.
+Make a backup before running it. The script works with the database in the data folder (`TRS_DATA`); close the program meanwhile.
 
 ## Development
 
 ```
 python -m venv .venv && .venv\Scripts\pip install -r requirements-dev.txt
 .venv\Scripts\python -m pytest -q tests
+python run.py            # the server without the tray icon, http://localhost:8000
+python tools/build_windows.py [--installer]   # build: needs pystray, pillow, pyinstaller, and Inno Setup 6 for the installer
 ```
 
-The end-to-end tests use a separate database `trs398_test` on the running container `trs398_db` (port 5433) and do not touch the working
-data; without the database they are skipped. The PDF is produced by WeasyPrint, which is part of the Docker image.
+The tests use a temporary SQLite database. The PDF is printed by the installed Edge or Chrome in headless mode (`app/pdf.py`; the test is skipped if there is none).
+Release: a tag `v2…` starts the build of the installer and the zip in GitHub Actions.
 
 ### Languages
 
-Russian is the source language of the interface; English comes from the phrase catalog `app/i18n/en.json` (`app/i18n.py` translates the finished page).
-After changing any Russian text of the interface: `python tools/i18n_extract.py` lists the phrases without an English text, `--todo file.json` writes them for translating,
-`--merge file.json` takes the translations in. The test `tests/test_i18n.py` fails if a phrase has no English text or a page still contains Russian in English mode.
-The scripts take the language from `TRS_LANG` in `.env` (messages in `tools/msg.en.bat` and `tools/msg.ru.bat`, checks in `tools/preflight.ps1`).
+Russian is the source language of the interface, English comes from the phrase catalog `app/i18n/en.json` (`app/i18n.py` translates the finished page).
+After changing any Russian text of the interface: `python tools/i18n_extract.py` lists the phrases without English, `--todo file.json` exports them for translation, `--merge file.json` loads the translations.
+`tests/test_i18n.py` fails if a phrase has no English text or Russian remains on a page in English mode. The default language is set by `TRS_LANG` (`ru` or `en`).
 
 ## Structure
 
 - `core/`: calculation (photons, electrons, SPC), reference tables in `core/data/`
-- `app/`: the web application (FastAPI, Jinja2, HTMX), `app/protocol.py` assembles the protocol data, `app/i18n.py` the translation
-- `db/init/`: schema, roles, migrations
-- `importers/`: transfer of tables and journals from xlsm (read-only)
-- `docs/DESIGN.en.md`: analysis of the source worksheets, formulas, the data model (Russian: `docs/DESIGN.md`)
+- `app/`: the web application (FastAPI, Jinja2, HTMX), `app/db.py` and `app/migrations/` (SQLite), `app/protocol.py` assembles the protocol data
+- `tray.py`, `run.py`, `trs398.spec`, `installer/`: start, tray icon, build
+- `importers/`: moving tables and journals from xlsm (read only)
+- `docs/DESIGN.en.md`: analysis of the source worksheets, formulas, data model (Russian: `docs/DESIGN.md`)
 
 ## Licence
 
-The code is distributed under the [MIT](LICENSE) licence. The IAEA reference tables in `core/data/` are not covered by the project's
-licence, see [NOTICE.md](NOTICE.md).
+The code is under the [MIT](LICENSE) licence. The IAEA reference tables in `core/data/` are not covered by the project licence, see [NOTICE.md](NOTICE.md).

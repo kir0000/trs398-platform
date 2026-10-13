@@ -6,54 +6,27 @@ import os
 import re
 from pathlib import Path
 
-import psycopg
+from tests import sqlcompat
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-TEST_DB = "trs398_test"
 ADMIN_PW, PHYS_PW, REV_PW, VIEW_PW = "admin-password-1", "physicist-pw-1", "reviewer-pw-1", "viewer-pw-12"
-
-
-def read_env():
-    env = {k: os.environ[k] for k in ("TRS_OWNER_PASSWORD", "TRS_APP_PASSWORD", "TRS_READONLY_PASSWORD")
-           if k in os.environ}
-    p = ROOT / ".env"
-    if p.exists():
-        for line in p.read_text(encoding="utf-8").splitlines():
-            if "=" in line and not line.startswith("#"):
-                k, v = line.split("=", 1)
-                env.setdefault(k.strip(), v.strip())
-    return env
 
 
 @pytest.fixture(scope="module")
 def client():
-    env = read_env()
-    host = os.environ.get("TRS_TEST_DB_HOST", "127.0.0.1:5433")
-    owner_url = f"postgresql://trs_owner:{env.get('TRS_OWNER_PASSWORD', '')}@{host}"
-    try:
-        admin = psycopg.connect(owner_url + "/postgres", autocommit=True, connect_timeout=3)
-    except Exception as e:                                           # pragma: no cover
-        pytest.skip(f"Postgres not reachable: {e}")
-    admin.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
-    admin.execute(f"CREATE DATABASE {TEST_DB}")
-    admin.close()
-    with psycopg.connect(owner_url + f"/{TEST_DB}", autocommit=True) as conn:
-        for f in sorted((ROOT / "db" / "init").glob("*.sql")):
-            conn.execute(f.read_text(encoding="utf-8"))
-    os.environ["DATABASE_URL"] = f"postgresql://trs_app:{env['TRS_APP_PASSWORD']}@{host}/{TEST_DB}"
-    os.environ["SESSION_SECRET"] = "test-secret-not-for-production"
-    os.environ["BOOTSTRAP_ADMIN_LOGIN"] = "admin"
-    os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = ADMIN_PW
+    import shutil
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="trs398_test_"))
+    os.environ.update(TRS_DATA=str(tmp), TRS_DB=str(tmp / "trs398_test.db"), BACKUP_DIR=str(tmp / "backups"),
+                      SESSION_SECRET="test-secret-not-for-production", TRS_NO_SCHEDULER="1",
+                      BOOTSTRAP_ADMIN_LOGIN="admin", BOOTSTRAP_ADMIN_PASSWORD=ADMIN_PW)
     from fastapi.testclient import TestClient
     from app.main import app
     with TestClient(app, follow_redirects=False) as c:
-        c.owner_url = owner_url + f"/{TEST_DB}"
-        c.app_url = os.environ["DATABASE_URL"]
+        c.owner_url = c.app_url = os.environ["TRS_DB"]            # the tests open the file directly (see tests/sqlcompat.py)
         yield c
-    admin = psycopg.connect(owner_url + "/postgres", autocommit=True)
-    admin.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
-    admin.close()
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 def token(c, path="/login"):
@@ -78,7 +51,7 @@ def post(s, path, data=None, page="/measurements", **kw):
 
 
 def q(c, sql, *args):
-    with psycopg.connect(c.owner_url) as conn:
+    with sqlcompat.connect(c.owner_url) as conn:
         return conn.execute(sql, args).fetchall()
 
 
@@ -277,12 +250,12 @@ def test_replacing_a_record_without_extra_fields_opens_a_filled_form(world, clie
     import json
     phys, rev = world["phys"], world["rev"]
     uid = lambda login: q(client, "SELECT id FROM users WHERE login=%s", login)[0][0]
-    with psycopg.connect(client.owner_url) as conn:
+    with sqlcompat.connect(client.owner_url) as conn:
         sid = conn.execute("""INSERT INTO measurement_sessions(measured_on, beam_id, calibration_id, geometry, mu, pressure_kpa,
             temp_c, humidity_pct, v1, v2, m1_readings, m2_readings, m_plus_readings, m_minus_readings, beam_quality, pdd_zref,
             note, status, created_by, approved_by, approved_at, extra)
-            VALUES ('2026-08-15', %s, %s, 'SSD', 200, 100.63, 23, 45, -300, -100, '{24.36,24.36,24.36}', '{24.21,24.21,24.21}',
-                    '{24.35,24.35,24.35}', '{24.36,24.36,24.36}', 0.62763, 63.3, 'DEMO', 'approved', %s, %s, now(), %s)
+            VALUES ('2026-08-15', %s, %s, 'SSD', 200, 100.63, 23, 45, -300, -100, '[24.36,24.36,24.36]', '[24.21,24.21,24.21]',
+                    '[24.35,24.35,24.35]', '[24.36,24.36,24.36]', 0.62763, 63.3, 'DEMO', 'approved', %s, %s, now(), %s)
             RETURNING id""", (world["beam_id"], world["cal_id"], uid("rev"), uid("phys"),
                               json.dumps({"demo": True, "form": {"pdd10": "63,3"}}))).fetchone()[0]
     page = f"/measurements/{sid}"
@@ -340,7 +313,7 @@ def test_trends_show_legacy_and_measured_points(world, client):
         entries = [{"date": f"2024-{1 + i // 28:02d}-{1 + i % 28:02d}", "deviation_pct": 0.1 * ((-1) ** i),
                     "dw_zmax": 0.01} for i in range(30)]
         entries[20]["deviation_pct"] = 3.0
-    with psycopg.connect(client.owner_url) as conn:
+    with sqlcompat.connect(client.owner_url) as conn:
         for e in entries:
             conn.execute("""INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, source_file)
                             VALUES (%s, %s, %s, %s, 't') ON CONFLICT DO NOTHING""",
@@ -558,19 +531,22 @@ def test_purge_needs_confirmation_reason_and_password(world, client):
     assert q(client, "SELECT count(*) FROM audit_log WHERE action='purge_denied'")[0][0] >= 1
 
 
-def test_app_role_cannot_delete_directly(client):
-    with psycopg.connect(client.app_url) as conn:
-        for table in ("measurement_sessions", "results", "legacy_journal", "audit_log", "users"):
-            with pytest.raises(psycopg.errors.InsufficientPrivilege):
-                conn.execute(f"DELETE FROM {table}")
+def test_history_cannot_be_deleted_directly(client):
+    """Approved records and their results, the imported journals, the audit log and users are protected by the schema itself."""
+    with sqlcompat.connect(client.app_url) as conn:
+        for sql in ("DELETE FROM measurement_sessions WHERE status = 'approved'", "DELETE FROM results", "DELETE FROM legacy_journal",
+                    "DELETE FROM audit_log", "DELETE FROM users"):
+            with pytest.raises(sqlcompat.errors.InsufficientPrivilege):
+                conn.execute(sql)
             conn.rollback()
 
 
 def test_function_refuses_non_admin_actor(client):
     uid = q(client, "SELECT id FROM users WHERE login='phys'")[0][0]
-    with psycopg.connect(client.app_url) as conn:
-        with pytest.raises(psycopg.errors.RaiseException, match="only an active admin"):
-            conn.execute("SELECT admin_purge('all', %s, 'попытка обхода')", (uid,))
+    from app import db, dbops
+    with db.connect(client.app_url) as conn:
+        with pytest.raises(dbops.MaintenanceError, match="only an active admin"):
+            dbops.admin_purge(conn, "all", uid, "попытка обхода")
 
 
 def test_purge_legacy_only_keeps_measurements(world, client):
@@ -597,8 +573,8 @@ def test_audit_log_survives_purge_all_and_stays_append_only(world, client):
     assert purge(world["adm"], scope="all").status_code == 200
     n = counts(client)[4]
     assert n > 0
-    with psycopg.connect(client.owner_url) as conn:
-        with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+    with sqlcompat.connect(client.owner_url) as conn:
+        with pytest.raises(sqlcompat.errors.RaiseException, match="append-only"):
             conn.execute("DELETE FROM audit_log")
     assert world["adm"].get("/admin/audit").status_code == 200
 
@@ -619,7 +595,7 @@ def test_deleting_equipment_with_data_is_blocked_and_nothing_is_lost(world, clie
     assert post(rev, f"/measurements/{sid}/approve", page=pg).status_code == 303
     r = post(phys, f"/measurements/{sid}/supersede", {"reason": "замена для проверки очистки"}, page=pg)
     assert r.status_code == 303
-    with psycopg.connect(client.owner_url) as conn:
+    with sqlcompat.connect(client.owner_url) as conn:
         for i in range(3):
             conn.execute("INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, source_file) "
                          "VALUES (%s, %s, 0.1, %s, 't')", (bid, f"2024-0{i + 1}-01", 0.01 + i / 1e6))
@@ -642,9 +618,9 @@ def test_deleting_equipment_with_data_is_blocked_and_nothing_is_lost(world, clie
     assert stats() == before
 
     # 2) even a direct DELETE by the application's database role is stopped by foreign keys
-    with psycopg.connect(client.app_url) as conn:
+    with sqlcompat.connect(client.app_url) as conn:
         for sql in ("DELETE FROM beams WHERE id=%s", "DELETE FROM linacs WHERE id=%s"):
-            with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            with pytest.raises(sqlcompat.errors.ForeignKeyViolation):
                 conn.execute(sql, (bid if "beams" in sql else lid,))
             conn.rollback()
     assert stats() == before

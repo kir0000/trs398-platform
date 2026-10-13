@@ -6,7 +6,7 @@
 <style>
 @page{
   size:A4 portrait;margin:12mm 11mm 14mm 11mm;
-  @bottom-center{content:"стр. " counter(page) " из " counter(pages) "   ·   {{ v.doc_name }}";font:7.5pt "Liberation Sans",Arial,sans-serif;color:#444}
+  @bottom-center{content:"стр. " counter(page) " / " counter(pages) "   ·   {{ v.doc_name }}";font:7.5pt "Liberation Sans",Arial,sans-serif;color:#444}
 }
 *{box-sizing:border-box}
 body{font:8.6pt/1.25 "Liberation Sans",Arial,"DejaVu Sans",sans-serif;color:#000;background:#fff;margin:0}
@@ -68,7 +68,7 @@ h2{break-after:avoid}
 </div>{% endif %}
 <div class="sheet">
 {% if s.status == 'voided' %}<div class="mark">АННУЛИРОВАНО {{ s.voided_at.strftime('%d.%m.%Y') }}: {{ s.void_reason }}. Документ недействителен.</div>
-{% elif s.status != 'approved' %}<div class="mark">НЕ УТВЕРЖДЕНО: статус «{{ status_labels[s.status] }}». Документ предварительный.</div>{% endif %}
+{% elif s.status != 'approved' %}<div class="mark">НЕ УТВЕРЖДЕНО: статус «<span>{{ status_labels[s.status] }}</span>». Документ предварительный.</div>{% endif %}
 <h1>{{ v.title }}</h1>
 <div class="sub">{{ v.subtitle }}</div>
 <div class="r" style="margin-left:0"><span class="lb">Пользователь</span>{{ cell(s.creator, 'y', 'w') }}<span class="sp"></span><span class="lb">Дата:</span>{{ cell(s.measured_on.strftime('%d.%m.%Y'), 'y') }}<span class="lb">протокол №</span>{{ cell(s.protocol_no, 'y') }}</div>

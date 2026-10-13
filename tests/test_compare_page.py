@@ -4,8 +4,7 @@ import json
 import random
 import re
 
-import psycopg
-
+from tests import sqlcompat
 from tests.test_app import client, post, q, world  # noqa: F401  (fixtures are discovered here)
 
 PG = "/measurements"
@@ -22,7 +21,7 @@ def make_linac(world_, client_, name, beams, shift_month=None):
         ids[(modality, energy, fff)] = q(client_, "SELECT id FROM beams WHERE linac_id=%s AND modality=%s AND nominal_energy=%s AND fff=%s",
                                          lid, modality, energy, fff)[0][0]
     start = dt.date(2025, 7, 15)
-    with psycopg.connect(client_.owner_url) as conn:
+    with sqlcompat.connect(client_.owner_url) as conn:
         for k, bid in enumerate(ids.values()):
             rng = random.Random(500 + k)
             for i in range(14):
@@ -84,3 +83,12 @@ def test_compare_is_open_to_every_signed_in_role_and_pinned_in_the_menu(world):
     from fastapi.testclient import TestClient
     from app.main import app
     assert TestClient(app, follow_redirects=False).get("/compare").status_code == 303
+
+
+def test_signed_values_get_an_arrow_only_above_the_limit():
+    from app.main import signed_over
+    assert str(signed_over(0.09, 2, 1)) == "+0.09" and str(signed_over(-0.12, 2, 1)) == "−0.12"
+    up, down = str(signed_over(1.4, 2, 1)), str(signed_over(-1.4, 2, 1))
+    assert "▲" in up and "+1.40" in up and "dev-up" in up
+    assert "▼" in down and "−1.40" in down and "dev-down" in down
+    assert str(signed_over(0.003, 3)) == "+0.003" and str(signed_over(0.0001, 3)) == "0.000" and signed_over(None) == "—"

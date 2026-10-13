@@ -1,7 +1,7 @@
 """Editable Type B values of the uncertainty budget, added lines, the appendix of the protocol, literature comparison."""
 import re
 
-import psycopg
+from tests import sqlcompat
 import pytest
 
 from core import uncertainty
@@ -11,7 +11,7 @@ from tests.test_app import client, create_measurement, post, q, world  # noqa: F
 @pytest.fixture(autouse=True)
 def clean_settings(client):
     """Every test starts with the standard budget (earlier tests of the module leave their changes behind)."""
-    with psycopg.connect(client.owner_url) as conn:
+    with sqlcompat.connect(client.owner_url) as conn:
         conn.execute("UPDATE uncertainty_settings SET active = false")
         conn.commit()
 

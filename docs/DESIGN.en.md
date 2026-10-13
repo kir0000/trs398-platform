@@ -1,5 +1,7 @@
 # TRS-398 Rev.1: a platform for the determination of absolute dose
 
+> **Version 2.0:** a single SQLite file (`app/migrations/001_baseline.sql`) replaces Docker and PostgreSQL. The roles and SECURITY DEFINER functions are replaced by triggers (protection of approved records, the audit log, protocol numbers) and the maintenance operations in `app/dbops.py`. The sections on Docker and the PostgreSQL roles describe version 1.x (branch `v1.x`); the calculations and the data model are the same.
+
 *Русская версия: [DESIGN.md](DESIGN.md)*
 
 The transfer of two xlsm worksheets (photons HE v2.0, electrons HE v2.0) into Docker + PostgreSQL with trends.
@@ -115,7 +117,7 @@ Rules:
 | `trs_app` | the application | `SELECT/INSERT/UPDATE` on the working tables, only `INSERT` into `audit_log`, no `DELETE` |
 | `trs_readonly` | Grafana, analytics | `SELECT` on the views (`v_trend`, `v_spc`), no access to users and password hashes |
 
-The passwords of the DB roles come from `.env` (not stored in the repository). The passwords of the application users are stored
+The passwords of the DB roles (version 1.x) came from `.env`. The passwords of the application users are stored
 only as hashes (argon2/bcrypt).
 
 ## 4. The data model (briefly)
@@ -221,8 +223,8 @@ are worded for the physicist and do not replace decisions. The demo data of True
 
 - **Protocol number** (`protocol_no`, migration 008): `YYYY-NNNN`, assigned by a database trigger at the creation of a record, sequential per year of the measurement,
   not editable, never reused.
-- **Backups and restoring**: `db/backup.sh`, `db/restore.sh`, `restore.bat`, the “Backups” page; a safety copy of the current database is made before every restore.
-- **First start**: the first administrator is created in the browser (`/setup`), no password is kept in `.env`.
-- **Network access** (`lan-on.bat`, optional HTTPS through Caddy) and the **two languages** (`app/i18n.py`, the phrase catalog `app/i18n/en.json`).
+- **Backups and restoring**: `app/backups.py` (the SQLite backup API, `.db.gz` files), `tools/restore.py`, the “Backups” page; a safety copy of the current database is made before every restore.
+- **First start**: the first administrator is created in the browser (`/setup`); no password is kept in clear text anywhere.
+- **Network access** (tray icon menu, [NETWORK.en.md](NETWORK.en.md)) and the **two languages** (`app/i18n.py`, the phrase catalog `app/i18n/en.json`).
 - **Guards against typos**: the dates of calibrations and measurements cannot lie in the future, an expired calibration cannot be chosen, ND,w is checked against
   the typical range of the chamber type (a soft hint).

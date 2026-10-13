@@ -103,7 +103,7 @@ input.unusual{border-color:var(--warn)}
 <div style="text-align:right;padding:10px 32px"><a href="/lang/{{ other_lang }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}" title="Language / Язык" style="font-weight:600">{{ other_lang|upper }}</a></div>
 {% endif %}
 <main>{% block content %}{% endblock %}</main>
-<div class="muted" style="font-size:12px;text-align:center;margin:26px 0 14px">TRS-398 Rev.1 · версия {{ app_version }}</div>
+<div class="muted" style="font-size:12px;text-align:center;margin:26px 0 14px">TRS-398 Rev.1 · <a href="/about" style="color:inherit">версия {{ app_version }}</a></div>
 <script>
 (function () {
   function hdr() { var h = document.querySelector('header'); if (h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px'); }

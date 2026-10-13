@@ -20,7 +20,9 @@ from app.notation import sym, sym_plain
 from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
-from app.db import audit, connect, get_db
+from app import dbops, updates
+from app.pdf import PdfUnavailable, html_to_pdf
+from app.db import audit, connect, data_dir, db_path, get_db, migrate, session_secret
 from app.security import (MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, LoginThrottle, can_create, can_review,
                           hash_password, verify_password)
 from core import electron as el_core
@@ -39,7 +41,19 @@ def signed(x, digits: int = 2):
     return Markup(f'<span class="{"dev-up" if r > 0 else "dev-down"}">{"▲" if r > 0 else "▼"}</span> {abs(x):.{digits}f}')
 
 
-templates.env.filters.update(sym=sym, sym_plain=sym_plain, signed=signed)
+def signed_over(x, digits: int = 2, limit: float | None = None):
+    """A signed value (+0.09 / −0.12); an arrow (red ▲, orange ▼) is added only where |x| exceeds the limit."""
+    from markupsafe import Markup
+    if x is None:
+        return "—"
+    r = round(x, digits)
+    text = f"{abs(x):.{digits}f}" if r == 0 else f"{'+' if r > 0 else chr(0x2212)}{abs(x):.{digits}f}"
+    if limit is not None and abs(x) > limit:
+        return Markup(f'<span class="{"dev-up" if x > 0 else "dev-down"}">{"▲" if x > 0 else "▼"}</span> {text}')
+    return text
+
+
+templates.env.filters.update(sym=sym, sym_plain=sym_plain, signed=signed, signed_over=signed_over)
 from markupsafe import Markup as _Markup
 templates.env.globals.update(fa=lambda name: _Markup(fields.attrs(name)), fdatalists=lambda: _Markup(fields.datalists()))
 throttle = LoginThrottle()
@@ -55,6 +69,7 @@ PURGE_SCOPES = {"measurements": "Измерения и результаты", "l
 async def lifespan(_app):
     conn = connect()
     try:
+        migrate(conn)
         services.seed_chambers(conn)
         login, password = os.environ.get("BOOTSTRAP_ADMIN_LOGIN"), os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
         if login and password and not has_users(conn):
@@ -66,12 +81,14 @@ async def lifespan(_app):
         conn.commit()
     finally:
         conn.close()
+    if os.environ.get("TRS_NO_SCHEDULER") != "1":
+        backups.start_scheduler()
     yield
 
 
 app = FastAPI(title="TRS-398 Rev.1", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")      # htmx and Plotly are served locally: no internet needed
-app.add_middleware(SessionMiddleware, secret_key=os.environ["SESSION_SECRET"], same_site="lax", max_age=8 * 3600,
+app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="lax", max_age=8 * 3600,
                    https_only=os.environ.get("HTTPS_ONLY") == "1")
 
 
@@ -194,7 +211,7 @@ async def setup(request: Request, conn=Depends(get_db)):
     """First run only: the first account is the administrator, with a password chosen by the person who installs."""
     form = await request.form()
     check_csrf(request, form)
-    conn.execute("SELECT pg_advisory_xact_lock(398)")                  # two simultaneous submissions create one account
+    conn.execute("UPDATE schema_migrations SET name = name WHERE 0")      # opens the write transaction: two simultaneous submissions create one account
     if has_users(conn):
         return RedirectResponse("/login", status_code=303)
     login_name, full_name = (form.get("login") or "").strip(), (form.get("full_name") or "").strip()
@@ -266,6 +283,25 @@ def app_version() -> str:
         path = BASE.parent / "VERSION"
         v = path.read_text(encoding="utf-8").strip() + "+dev" if path.exists() else "dev"
     return v
+
+
+def about_context(**extra):
+    path = db_path()
+    return dict(version=app_version(), data_dir=str(data_dir()), db_file=str(path),
+                db_mb=round(path.stat().st_size / 1048576, 1) if path.exists() else 0, backup=backups.latest(), **extra)
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about_page(request: Request, user=Depends(current_user)):
+    return render(request, "about.html", user, **about_context(update=None))
+
+
+@app.post("/about/check", response_class=HTMLResponse)
+async def about_check(request: Request, user=Depends(current_user)):
+    """The only place where the program talks to the internet, and only after this button."""
+    form = await request.form()
+    check_csrf(request, form)
+    return render(request, "about.html", user, **about_context(update=updates.check(app_version())))
 
 
 @app.get("/healthz")
@@ -559,7 +595,7 @@ async def save_reference(request: Request, user=Depends(require("physicist", "ad
         raise HTTPException(422, str(e)) from None
     if not any(data.get(k) for k in ("m_plus", "m_minus", "m2")):
         raise HTTPException(422, "Заполните показания (iii) и (iv): иначе опорных значений нет")
-    from psycopg.types.json import Jsonb
+    from app.db import Jsonb
     conn.execute("""INSERT INTO beam_reference(beam_id, chamber_unit_id, data, set_by) VALUES (%s, %s, %s, %s)
                     ON CONFLICT (beam_id, chamber_unit_id) DO UPDATE SET data = EXCLUDED.data, set_by = EXCLUDED.set_by, set_at = now()""",
                  (bid, unit, Jsonb(data), user["id"]))
@@ -629,7 +665,7 @@ async def create(request: Request, user=Depends(require("physicist", "admin")), 
         beams, cals = load_choices(conn, modality)
         return render(request, "form.html", user, status_code=422, modality=modality, beams=beams, cals=cals, f=f,
                       error=str(e), action="/measurements", title="Новое измерение", is_new=True)
-    from psycopg.types.json import Jsonb
+    from app.db import Jsonb
     cols = list(values)
     row = conn.execute(
         f"INSERT INTO measurement_sessions({', '.join(cols)}, created_by, extra) "
@@ -681,14 +717,13 @@ def print_protocol(request: Request, sid: str, unc: str = "short", user=Depends(
 @app.get("/measurements/{sid}/pdf")
 def pdf_protocol(request: Request, sid: str, unc: str = "short", user=Depends(current_user), conn=Depends(get_db)):
     s, res, p = protocol_page(conn, user, sid, "pdf")
-    try:
-        from weasyprint import HTML
-    except (ImportError, OSError):
-        raise HTTPException(503, "Генерация PDF недоступна: в этой среде не установлен WeasyPrint "
-                                 "(в Docker-образе он есть). Используйте «Печать → Сохранить как PDF».") from None
     html = render(request, "protocol.html", user, s=s, res=res, v=p, screen=False,
                   unc_mode=unc_choice(unc)).body.decode("utf-8")
-    pdf = HTML(string=html).write_pdf()
+    try:
+        pdf = html_to_pdf(html)
+    except PdfUnavailable:
+        raise HTTPException(503, "Генерация PDF недоступна: на компьютере не найден Microsoft Edge или Chrome. "
+                                 "Используйте «Печать → Сохранить как PDF».") from None
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="TRS398-protocol-{s["id"]}.pdf"'})
 
@@ -743,7 +778,7 @@ async def edit(request: Request, sid: str, user=Depends(require("physicist", "ad
         beams, cals = load_choices(conn, s["modality"])
         return render(request, "form.html", user, status_code=422, modality=s["modality"], beams=beams, cals=cals,
                       f=f, error=str(e), action=f"/measurements/{s['id']}/edit", title=f"Правка записи №{s['id']}")
-    from psycopg.types.json import Jsonb
+    from app.db import Jsonb
     cols = list(values)
     conn.execute(f"UPDATE measurement_sessions SET {', '.join(f'{c} = %s' for c in cols)}, extra = %s, "
                  f"status = 'draft', review_comment = NULL WHERE id = %s",
@@ -811,7 +846,7 @@ async def supersede(request: Request, sid: str, user=Depends(require("physicist"
         raise HTTPException(409, "Заменить можно только утверждённую запись")
     if len(reason) < 5:
         raise HTTPException(422, "Укажите причину замены (не короче 5 символов)")
-    from psycopg.types.json import Jsonb
+    from app.db import Jsonb
     new = conn.execute("""INSERT INTO measurement_sessions(measured_on, beam_id, calibration_id, geometry, mu,
             pressure_kpa, temp_c, humidity_pct, v1, v2, m1_readings, m2_readings, m_plus_readings, m_minus_readings,
             beam_quality, pdd_zref, tmr_zref, note, created_by, extra, supersedes_id, supersede_reason, ref_key)
@@ -837,7 +872,10 @@ async def delete_measurement(request: Request, sid: str, user=Depends(require("p
         raise HTTPException(409, "Удалить можно только черновик или возвращённую запись; утверждённую можно аннулировать")
     if s["created_by"] != user["id"] and user["role"] != "admin":
         raise HTTPException(403, "Удалить запись может только её автор или администратор")
-    conn.execute("SELECT delete_draft(%s, %s)", (s["id"], user["id"]))
+    try:
+        dbops.delete_draft(conn, s["id"], user["id"])
+    except dbops.MaintenanceError as e:
+        raise HTTPException(409, str(e)) from None
     return RedirectResponse("/measurements", status_code=303)
 
 
@@ -939,7 +977,7 @@ def compare_page(request: Request, linac_id: str = "", modality: str = "all", mo
     """Trends of several energies of one linac side by side, with a search for a common cause."""
     if modality not in COMPARE_MODALITIES or months not in COMPARE_PERIODS:
         raise HTTPException(422, "Неверные параметры сравнения")
-    linacs = conn.execute("""SELECT l.id, l.name, (SELECT count(DISTINCT (t.modality, t.nominal_energy, t.fff)) FROM v_trend t
+    linacs = conn.execute("""SELECT l.id, l.name, (SELECT count(DISTINCT t.modality || '|' || t.nominal_energy || '|' || t.fff) FROM v_trend t
                              WHERE t.linac = l.name) AS n_beams FROM linacs l ORDER BY l.name""").fetchall()
     ctx = dict(linacs=linacs, linac=None, modality=modality, months=months, modalities=COMPARE_MODALITIES,
                periods=COMPARE_PERIODS, summaries=[], hints=[], flagged=[], corr_labels=[], plot={},
@@ -1307,7 +1345,7 @@ async def delete_reference(request: Request, user=Depends(require("admin")), con
 def beam_usage(conn, beam_id):
     """Records of a beam: all, the locked ones (approved, superseded, annulled: history) and the imported journal rows."""
     return conn.execute("""SELECT (SELECT count(*) FROM measurement_sessions WHERE beam_id = %s) AS sessions,
-                                  (SELECT count(*) FROM measurement_sessions WHERE beam_id = %s AND status::text NOT IN ('draft', 'returned')) AS locked,
+                                  (SELECT count(*) FROM measurement_sessions WHERE beam_id = %s AND status NOT IN ('draft', 'returned')) AS locked,
                                   (SELECT count(*) FROM legacy_journal WHERE beam_id = %s) AS legacy""",
                         (beam_id, beam_id, beam_id)).fetchone()
 
@@ -1371,7 +1409,7 @@ async def archive_beam(request: Request, bid: str, user=Depends(require("admin")
     bid = int_or_404(bid, "Пучок")
     on = form.get("archived") != "0"
     row = conn.execute("""UPDATE beams SET archived = %s, archived_at = CASE WHEN %s THEN now() END,
-                          archived_by = CASE WHEN %s THEN %s::int END WHERE id = %s RETURNING id""",
+                          archived_by = CASE WHEN %s THEN %s END WHERE id = %s RETURNING id""",
                        (on, on, on, user["id"], bid)).fetchone()
     if not row:
         raise HTTPException(404, "Пучок не найден")
@@ -1391,7 +1429,10 @@ async def purge_beam(request: Request, bid: str, user=Depends(require("admin")),
                                  "удалить их нельзя. Отправьте пучок в архив")
     if use["legacy"] and not form.get("with_legacy"):
         raise HTTPException(409, f"У пучка есть импортированные записи журнала ({use['legacy']}): отметьте их удаление или отправьте пучок в архив")
-    conn.execute("SELECT delete_beam_with_drafts(%s, %s, %s)", (bid, user["id"], bool(form.get("with_legacy"))))
+    try:
+        dbops.delete_beam_with_drafts(conn, bid, user["id"], bool(form.get("with_legacy")))
+    except dbops.MaintenanceError as e:
+        raise HTTPException(409, str(e)) from None
     return RedirectResponse(eq_back(form), status_code=303)
 
 
@@ -1669,7 +1710,7 @@ async def backup_now(request: Request, user=Depends(require("admin")), conn=Depe
     form = await request.form()
     check_csrf(request, form)
     if not backups.request_now():
-        raise HTTPException(503, "Не удалось отправить запрос службе копий. Сделайте копию вручную: backup-now.bat")
+        raise HTTPException(503, "Не удалось отправить запрос службе копий. Сделайте копию вручную: пункт «Сделать резервную копию» в меню значка программы.")
     audit(conn, user["id"], "backup_requested", "backups", None)
     return RedirectResponse("/admin/backups?requested=1", status_code=303)
 
@@ -1697,7 +1738,7 @@ async def purge(request: Request, user=Depends(require("admin")), conn=Depends(g
         error = "Неверный пароль"
     result = None
     if not error:
-        result = conn.execute("SELECT admin_purge(%s, %s, %s) AS r", (scope, user["id"], reason)).fetchone()["r"]
+        result = dbops.admin_purge(conn, scope, user["id"], reason)
     return render(request, "admin_purge.html", user, status_code=422 if error else 200, counts=purge_counts(conn), backup=backups.latest(),
                   scopes=PURGE_SCOPES, confirmation=PURGE_CONFIRMATION, result=result, error=error)
 

@@ -1,6 +1,6 @@
 # User guide
 
-A platform for the determination of absolute dose according to IAEA TRS-398 Rev.1 (photons and electrons). Address: `https://localhost:8443` (with HTTPS on) or `http://localhost:8000`.
+A platform for the determination of absolute dose according to IAEA TRS-398 Rev.1 (photons and electrons). Address: `http://localhost:8000` on the computer with the program, from other computers of the network: the address shown by the tray icon menu (see “Network access” in the README).
 
 ## Roles
 
@@ -120,7 +120,7 @@ The same note is on the “Trends” page (the “How to read CUSUM” block).
 
 ## 7. Interface language
 
-The **EN / RU** switch is in the top bar (on the sign-in page at the top right). The choice is remembered in the browser; the default language is set by `TRS_LANG` in the `.env` file.
+The **EN / RU** switch is in the top bar (on the sign-in page at the top right). The choice is remembered in the browser; the default language is set by the `TRS_LANG` variable (`ru` or `en`).
 
 The interface language, the encoding and the decimal separator do not depend on the language or the regional settings of Windows. Pages are always UTF-8; Russian pages show a comma in numbers (`2,5`), English pages a point (`2.5`),
 and either can be typed. Only the look of the standard browser fields (for example, the date picker: dd.mm.yyyy or mm/dd/yyyy) depends on the region of the computer.
@@ -129,7 +129,7 @@ and either can be typed. Only the look of the standard browser fields (for examp
 
 - “Users”: creating accounts and roles.
 - “Audit”: the action log (append-only).
-- “Backups”: the state of the backups, the “Make a backup now” button, instructions for restoring (`restore.bat`).
+- “Backups”: the state of the backups, the “Make a backup now” button, instructions for restoring (the “Restore from a backup…” item of the icon menu).
 - “Clear database”: deleting data (first check the backup freshness banner; the confirmation word is УДАЛИТЬ or DELETE).
 - Backups: daily into the `backups/` folder, kept for 30 days. To check that a backup restores:
 
