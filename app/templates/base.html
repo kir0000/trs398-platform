@@ -50,10 +50,12 @@ table.sortable th:not(.nosort):hover{color:var(--accent)}
 header{background:var(--card);border-bottom:2px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.07);gap:6px 10px;padding:7px 20px}
 header .brand{font-weight:700;padding-right:12px;border-right:1px solid var(--line);white-space:nowrap}
 nav.menu{display:flex;gap:2px;flex-wrap:nowrap;align-items:center;font-size:14px;white-space:nowrap}
-nav.menu a{padding:6px 9px;border-radius:8px;color:var(--text)}
+nav.menu a{position:relative;padding:6px 9px;border-radius:8px;color:var(--text)}
+nav.menu a + a::before{content:"";position:absolute;left:-2px;top:22%;height:56%;border-left:1px solid var(--line)}
+nav.menu a.on::before,nav.menu a.on + a::before,nav.menu a:hover::before,nav.menu a:hover + a::before{display:none}
 nav.menu a:hover{background:var(--bg);color:var(--accent)}
 nav.menu a.on{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);font-weight:600}
-nav.menu.admin{padding-left:10px;border-left:1px solid var(--line)}
+nav.menu.admin{margin-left:12px;padding:2px 4px;background:var(--bg);border:1px solid var(--line);border-radius:10px}
 nav.menu.admin a{font-size:13px;color:var(--muted)}
 nav.menu.admin a.on{color:var(--accent)}
 header .who{display:flex;gap:10px;align-items:center;padding-left:10px;border-left:1px solid var(--line);white-space:nowrap}
