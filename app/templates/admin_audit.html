@@ -2,9 +2,29 @@
 {% block title %}Аудит{% endblock %}
 {% block content %}
 <h1>Журнал аудита</h1>
-<p class="muted">Только добавление: записи нельзя изменить или удалить, в том числе при очистке базы. Показаны последние 300.</p>
+<p class="muted">Только добавление: записи нельзя изменить или удалить, в том числе при очистке базы. Найдено записей: {{ total }}.</p>
+<form method="get" action="/admin/audit" class="card row" style="gap:10px;align-items:end;flex-wrap:wrap">
+  <label>С даты<br><input type="date" name="from" value="{{ f['from'] or '' }}"></label>
+  <label>По дату<br><input type="date" name="to" value="{{ f['to'] or '' }}"></label>
+  <label>Пользователь<br><select name="user"><option value="">Все</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if f.user == u.id }}>{{ u.login }}</option>{% endfor %}</select></label>
+  <label>Раздел<br><select name="group"><option value="">Все</option>{% for g in groups %}<option value="{{ g }}" {{ 'selected' if f.group == g }}>{{ g }}</option>{% endfor %}</select></label>
+  <label>Действие<br><select name="action"><option value="">Все</option>{% for code, (name, grp) in actions %}<option value="{{ code }}" {{ 'selected' if f.action == code }}>{{ name }}</option>{% endfor %}</select></label>
+  <label>Поиск<br><input name="q" value="{{ f.q }}" placeholder="протокол, адрес, текст" size="22"></label>
+  <span><button class="primary">Показать</button> <a class="btn" href="/admin/audit">Сбросить</a> <a class="btn" href="/admin/audit.csv{{ '?' ~ query if query }}">Скачать CSV</a></span>
+</form>
 <div class="card"><table class="sortable">
-  <tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Детали</th></tr>
-  {% for a in rows %}<tr><td>{{ a.at.strftime('%d.%m.%Y %H:%M:%S') }}</td><td>{{ a.login or '—' }}</td><td>{{ a.action }}</td><td>{{ a.entity }}{% if a.entity_id %} {{ a.entity_id }}{% endif %}</td><td class="muted">{{ a.details if a.details else '' }}</td></tr>{% endfor %}
-</table></div>
+  <tr><th>Время</th><th>Пользователь</th><th>Адрес</th><th>Действие</th><th>Объект</th><th>Подробности</th></tr>
+  {% for a in rows %}<tr>
+    <td style="white-space:nowrap">{{ a.at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+    <td>{{ a.login or '—' }}</td>
+    <td class="muted">{{ a.ip or '' }}</td>
+    <td title="{{ a.action }}">{{ a.label }}</td>
+    <td>{% if a.url %}<a href="{{ a.url }}">{{ a.object }}</a>{% else %}{{ a.object }}{% endif %}</td>
+    <td class="muted" style="font-size:13px">{% for name, value, free in a.lines %}<div>{% if name %}<b>{{ name }}:</b> {% endif %}{% if free %}<span translate="no">{{ value }}</span>{% else %}{{ value }}{% endif %}</div>{% endfor %}</td>
+  </tr>{% else %}<tr><td colspan="6" class="muted">Записей по этим условиям нет.</td></tr>{% endfor %}
+</table>
+{% if pages > 1 %}<p class="row" style="gap:8px;margin:10px 0 0">Страница {{ page }} из {{ pages }}:
+  {% if page > 1 %}<a class="btn" href="/admin/audit?page={{ page - 1 }}{{ '&' ~ query if query }}">← Назад</a>{% endif %}
+  {% if page < pages %}<a class="btn" href="/admin/audit?page={{ page + 1 }}{{ '&' ~ query if query }}">Вперёд →</a>{% endif %}</p>{% endif %}
+</div>
 {% endblock %}

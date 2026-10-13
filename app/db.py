@@ -6,6 +6,7 @@ Dates, times, booleans, JSON documents and arrays of readings are stored as text
 """
 from __future__ import annotations
 
+import contextvars
 import datetime as dt
 import json
 import os
@@ -169,8 +170,22 @@ def get_db():
         conn.close()
 
 
+request_ip: contextvars.ContextVar[str | None] = contextvars.ContextVar("request_ip", default=None)   # set per request by the middleware
+
+
 def audit(conn, user_id, action, entity, entity_id=None, details=None):
     conn.execute(
-        "INSERT INTO audit_log(user_id, action, entity, entity_id, details) VALUES (%s, %s, %s, %s, %s)",
-        (user_id, action, entity, None if entity_id is None else str(entity_id), Jsonb(details or {})),
+        "INSERT INTO audit_log(user_id, action, entity, entity_id, details, ip) VALUES (%s, %s, %s, %s, %s, %s)",
+        (user_id, action, entity, None if entity_id is None else str(entity_id), Jsonb(details or {}), request_ip.get()),
     )
+
+
+def system_event(action, entity="system", entity_id=None, details=None) -> None:
+    """A record of something the program itself did (start, backup, update): its own connection, never raises."""
+    try:
+        with connect() as conn:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'audit_log'").fetchone():
+                conn.execute("INSERT INTO audit_log(user_id, action, entity, entity_id, details) VALUES (NULL, %s, %s, %s, %s)",
+                             (action, entity, None if entity_id is None else str(entity_id), Jsonb(details or {})))
+    except Exception:                                            # noqa: BLE001  (a log entry must never stop the program)
+        pass

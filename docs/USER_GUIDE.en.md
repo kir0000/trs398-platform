@@ -128,7 +128,7 @@ and either can be typed. Only the look of the standard browser fields (for examp
 ## 8. For the administrator
 
 - “Users”: creating accounts and roles.
-- “Audit”: the action log (append-only).
+- “Audit”: the log of actions (records can only be appended, never changed or deleted). Each record shows the time, the user, the **address of the computer**, a readable name of the action, the object (a link to the protocol) and the details: reasons and comments, and for edits **“was → became”** (beam parameters, calibrations, measurement records, user roles). The log also holds the sign-in and sign-out, opening of the printed form and of the PDF of a protocol, the start of the program, the automatic backups and their failures, updates of the database structure and restoring from a backup. There are filters (dates, user, section, action, a search by text and address), pages of 100 records and an export **to CSV** (opens in Excel) with the same filters. The texts typed by people stay as written, also in English.
 - “Backups”: the state of the backups, the “Make a backup now” button, instructions for restoring (the “Restore from a backup…” item of the icon menu).
 - “Clear database”: deleting data (first check the backup freshness banner; the confirmation word is УДАЛИТЬ or DELETE).
 - Backups: daily into the `backups/` folder, kept for 30 days. To check that a backup restores:

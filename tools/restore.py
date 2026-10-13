@@ -60,6 +60,11 @@ def main():
             shutil.move(str(new), str(target))
         except PermissionError:
             raise SystemExit("the database file is in use: close the program and run this again")
+    try:                                                      # the program writes the record into the restored database at its start
+        import json
+        (target.parent / "restored.json").write_text(json.dumps({"file": src.name, "at": datetime.now().isoformat(timespec="seconds")}), encoding="utf-8")
+    except OSError:
+        pass
     print(f"Restored from {src.name}. Start the program.")
 
 
