@@ -1596,5 +1596,6 @@
   "✓ Сохранено": "✓ Saved",
   "✓ готов": "✓ ready",
   "Последняя резервная копия старше 36 часов: программа должна быть запущена в течение дня.": "The latest backup is older than 36 hours: the program must be running during the day.",
-  "Резервных копий нет. Перед удалением данных сделайте копию вручную (кнопка «Сделать копию сейчас»).": "There are no backups. Before deleting data make a backup manually (the button “Make a backup now”)."
+  "Резервных копий нет. Перед удалением данных сделайте копию вручную (кнопка «Сделать копию сейчас»).": "There are no backups. Before deleting data make a backup manually (the button “Make a backup now”).",
+  "Генерация PDF недоступна: на компьютере не найден Microsoft Edge или Chrome. Используйте «Печать → Сохранить как PDF».": "PDF generation is unavailable: Microsoft Edge or Chrome was not found on this computer. Use “Print → Save as PDF”."
 }

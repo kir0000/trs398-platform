@@ -1,16 +1,18 @@
 """Load a journal JSON (from extract_journal.py) into legacy_journal.
 
 Idempotent: rows are keyed by (beam, date, Dw) and duplicates are skipped.
-Connection: DATABASE_URL env var (use the owner role for imports).
+The database is the one of the program (TRS_DB, else data/trs398.db).
 
 Usage: python importers/load_legacy.py <journal.json> --linac "Name" --modality photon|electron
            --energy 6 [--fff] --source "file name" [--demo]
 """
 import argparse
 import json
-import os
+import sys
+from pathlib import Path
 
-import psycopg
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from app import db  # noqa: E402
 
 
 def main():
@@ -25,26 +27,24 @@ def main():
     a = ap.parse_args()
 
     entries = json.load(open(a.journal, encoding="utf-8"))
-    with psycopg.connect(os.environ["DATABASE_URL"]) as conn, conn.cursor() as cur:
-        cur.execute("INSERT INTO linacs(name) VALUES (%s) ON CONFLICT (name) DO NOTHING", (a.linac,))
-        cur.execute("SELECT id FROM linacs WHERE name = %s", (a.linac,))
-        linac_id = cur.fetchone()[0]
-        cur.execute("""INSERT INTO beams(linac_id, modality, nominal_energy, fff) VALUES (%s, %s, %s, %s)
-                       ON CONFLICT (linac_id, modality, nominal_energy, fff) DO NOTHING""",
-                    (linac_id, a.modality, a.energy, a.fff))
-        cur.execute("""SELECT id FROM beams WHERE linac_id = %s AND modality = %s
-                       AND nominal_energy = %s AND fff = %s""", (linac_id, a.modality, a.energy, a.fff))
-        beam_id = cur.fetchone()[0]
+    with db.connect() as conn:
+        db.migrate(conn)
+        conn.execute("INSERT INTO linacs(name) VALUES (%s) ON CONFLICT (name) DO NOTHING", (a.linac,))
+        linac_id = conn.execute("SELECT id FROM linacs WHERE name = %s", (a.linac,)).fetchone()["id"]
+        conn.execute("""INSERT INTO beams(linac_id, modality, nominal_energy, fff) VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (linac_id, modality, nominal_energy, fff) DO NOTHING""",
+                     (linac_id, a.modality, a.energy, a.fff))
+        beam_id = conn.execute("""SELECT id FROM beams WHERE linac_id = %s AND modality = %s
+                                  AND nominal_energy = %s AND fff = %s""", (linac_id, a.modality, a.energy, a.fff)).fetchone()["id"]
         added = 0
         for e in entries:
-            cur.execute("""INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, mq_nc_per_mu,
-                                                      chamber_text, note, source_file, is_demo)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                           ON CONFLICT (beam_id, measured_on, dw_zmax) DO NOTHING""",
-                        (beam_id, e["date"], e["deviation_pct"], e["dw_zmax"], e["mq_nc_per_mu"],
-                         e["chamber"], e["note"], a.source, a.demo))
+            cur = conn.execute("""INSERT INTO legacy_journal(beam_id, measured_on, deviation_pct, dw_zmax, mq_nc_per_mu,
+                                                             chamber_text, note, source_file, is_demo)
+                                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                  ON CONFLICT (beam_id, measured_on, dw_zmax) DO NOTHING""",
+                               (beam_id, e["date"], e["deviation_pct"], e["dw_zmax"], e["mq_nc_per_mu"],
+                                e["chamber"], e["note"], a.source, int(a.demo)))
             added += cur.rowcount
-        conn.commit()
     print(f"{added} of {len(entries)} entries added (beam id {beam_id}, demo={a.demo})")
 
 

@@ -3,7 +3,7 @@
     python tools/pg_to_sqlite.py --env-file .env [--pg-port 5433] [--out data/trs398.db] [--force]
     python tools/pg_to_sqlite.py --pg-url postgresql://user:pass@localhost:5433/trs398 --out new.db
 
-The PostgreSQL database is only read. The new file gets the schema of version 2 (app/migrations), every table is copied with its
+The PostgreSQL database is only read (needs `pip install "psycopg[binary]"`, used only for this move). The new file gets the schema of version 2 (app/migrations), every table is copied with its
 identifiers (so the references and the protocol numbers stay as they were), then the copy is verified: row counts, every value
 of every table, and the rows of the trend view. Exit code 0 only when everything matches.
 """

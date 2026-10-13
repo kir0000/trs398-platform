@@ -21,6 +21,7 @@ from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
 from app import dbops
+from app.pdf import PdfUnavailable, html_to_pdf
 from app.db import audit, connect, get_db, migrate, session_secret
 from app.security import (MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, LoginThrottle, can_create, can_review,
                           hash_password, verify_password)
@@ -685,14 +686,13 @@ def print_protocol(request: Request, sid: str, unc: str = "short", user=Depends(
 @app.get("/measurements/{sid}/pdf")
 def pdf_protocol(request: Request, sid: str, unc: str = "short", user=Depends(current_user), conn=Depends(get_db)):
     s, res, p = protocol_page(conn, user, sid, "pdf")
-    try:
-        from weasyprint import HTML
-    except (ImportError, OSError):
-        raise HTTPException(503, "Генерация PDF недоступна: в этой среде не установлен WeasyPrint "
-                                 "(в Docker-образе он есть). Используйте «Печать → Сохранить как PDF».") from None
     html = render(request, "protocol.html", user, s=s, res=res, v=p, screen=False,
                   unc_mode=unc_choice(unc)).body.decode("utf-8")
-    pdf = HTML(string=html).write_pdf()
+    try:
+        pdf = html_to_pdf(html)
+    except PdfUnavailable:
+        raise HTTPException(503, "Генерация PDF недоступна: на компьютере не найден Microsoft Edge или Chrome. "
+                                 "Используйте «Печать → Сохранить как PDF».") from None
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="TRS398-protocol-{s["id"]}.pdf"'})
 
