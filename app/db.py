@@ -118,6 +118,19 @@ def connect(path: str | os.PathLike | None = None) -> Connection:
     return conn
 
 
+def pending(conn: Connection) -> list[str]:
+    """The migrations this database has not seen yet (nothing is changed)."""
+    has = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").fetchone()
+    done = {r["name"] for r in conn.execute("SELECT name FROM schema_migrations").fetchall()} if has else set()
+    return [p.name for p in sorted(MIGRATIONS.glob("*.sql")) if p.name not in done]
+
+
+def has_data(conn: Connection) -> bool:
+    """True if this is not a new empty database (there is at least one user)."""
+    has = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'").fetchone()
+    return bool(has and conn.execute("SELECT 1 FROM users LIMIT 1").fetchone())
+
+
 def migrate(conn: Connection) -> list[str]:
     """Apply the migrations that this database has not seen yet (app/migrations/NNN_name.sql, in order). Returns their names."""
     conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations(name TEXT PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)")

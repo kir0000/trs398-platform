@@ -132,12 +132,12 @@ def keep_days() -> int:
         return 30
 
 
-def make(now: datetime | None = None, folder: Path | None = None) -> Path:
+def make(now: datetime | None = None, folder: Path | None = None, name_prefix: str = "trs398") -> Path:
     """A compressed copy of the database right now; copies older than the keeping period are removed. Returns its path."""
     now = now or datetime.now()
     default_folder = backup_dir()
     folder = folder or default_folder
-    target = folder / f"trs398_{now:%Y-%m-%d_%H%M%S}.db.gz"
+    target = folder / f"{name_prefix}_{now:%Y-%m-%d_%H%M%S}.db.gz"
     with _lock:
         fd, tmp = tempfile.mkstemp(suffix=".db", dir=str(folder))
         os.close(fd)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -23,6 +24,7 @@ from core import uncertainty_literature as ulit
 from app import applog, dbops, updates
 from app.pdf import PdfUnavailable, html_to_pdf
 from app.db import audit, connect, data_dir, db_path, get_db, migrate, session_secret
+from app.db import has_data as db_has_data, pending as db_pending
 from app.security import (MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, LoginThrottle, can_create, can_review,
                           hash_password, verify_password)
 from core import electron as el_core
@@ -70,6 +72,16 @@ async def lifespan(_app):
     log_handler = applog.setup(app_version())
     conn = connect()
     try:
+        todo = db_pending(conn)
+        if todo and db_has_data(conn):                         # an update changes the structure: keep a copy of the data as it was
+            keep = backups.backup_dir() / "keep"
+            keep.mkdir(parents=True, exist_ok=True)
+            try:
+                kept = backups.make(folder=keep, name_prefix="trs398_update")
+                logging.getLogger("trs398").info("before %s a safety copy was made: %s", ", ".join(todo), kept.name)
+            except Exception:                                  # noqa: BLE001
+                logging.getLogger("trs398").exception("the safety copy before the update failed")
+                raise
         migrate(conn)
         services.seed_chambers(conn)
         login, password = os.environ.get("BOOTSTRAP_ADMIN_LOGIN"), os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
