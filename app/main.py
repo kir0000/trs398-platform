@@ -20,9 +20,9 @@ from app.notation import sym, sym_plain
 from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
-from app import dbops
+from app import dbops, updates
 from app.pdf import PdfUnavailable, html_to_pdf
-from app.db import audit, connect, get_db, migrate, session_secret
+from app.db import audit, connect, data_dir, db_path, get_db, migrate, session_secret
 from app.security import (MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, LoginThrottle, can_create, can_review,
                           hash_password, verify_password)
 from core import electron as el_core
@@ -283,6 +283,25 @@ def app_version() -> str:
         path = BASE.parent / "VERSION"
         v = path.read_text(encoding="utf-8").strip() + "+dev" if path.exists() else "dev"
     return v
+
+
+def about_context(**extra):
+    path = db_path()
+    return dict(version=app_version(), data_dir=str(data_dir()), db_file=str(path),
+                db_mb=round(path.stat().st_size / 1048576, 1) if path.exists() else 0, backup=backups.latest(), **extra)
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about_page(request: Request, user=Depends(current_user)):
+    return render(request, "about.html", user, **about_context(update=None))
+
+
+@app.post("/about/check", response_class=HTMLResponse)
+async def about_check(request: Request, user=Depends(current_user)):
+    """The only place where the program talks to the internet, and only after this button."""
+    form = await request.form()
+    check_csrf(request, form)
+    return render(request, "about.html", user, **about_context(update=updates.check(app_version())))
 
 
 @app.get("/healthz")
@@ -1691,7 +1710,7 @@ async def backup_now(request: Request, user=Depends(require("admin")), conn=Depe
     form = await request.form()
     check_csrf(request, form)
     if not backups.request_now():
-        raise HTTPException(503, "Не удалось отправить запрос службе копий. Сделайте копию вручную: backup-now.bat")
+        raise HTTPException(503, "Не удалось отправить запрос службе копий. Сделайте копию вручную: пункт «Сделать резервную копию» в меню значка программы.")
     audit(conn, user["id"], "backup_requested", "backups", None)
     return RedirectResponse("/admin/backups?requested=1", status_code=303)
 

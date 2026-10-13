@@ -23,7 +23,7 @@ Windows 10 or 11 is needed. Docker, Python and database servers are **not** need
 
 ## Updating
 
-Download the new installer and run it over the old one: the program is replaced, **the data are not touched**. Portable version: unpack the new zip over the old folder, do not delete `data`.
+To see whether a new version is out: click the version number at the bottom of any page (“About”) and press “Check for updates” (one request to GitHub, only on the button). Download the new installer and run it over the old one: the program is replaced, **the data are not touched**. Portable version: unpack the new zip over the old folder, do not delete `data`.
 Make a backup before updating (icon menu).
 
 ## Uninstalling

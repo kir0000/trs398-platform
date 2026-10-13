@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}О программе{% endblock %}
+{% block content %}
+<h1>О программе</h1>
+<div class="card"><h2>TRS-398 Rev.1</h2>
+  <p>Версия: <b>{{ version }}</b></p>
+  <p>Папка с данными: <code>{{ data_dir }}</code></p>
+  <p>Файл базы: <code>{{ db_file }}</code>, {{ db_mb }} МБ</p>
+  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0">{{ backup.message }}</p>
+</div>
+<div class="card"><h2>Обновления</h2>
+  <p class="muted" style="font-size:13px">Программа сама никуда не обращается. Кнопка ниже делает один запрос к странице выпусков на GitHub; данные измерений не передаются.</p>
+  <form method="post" action="/about/check"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Проверить обновления</button></form>
+  {% if update %}
+    {% if not update.ok %}<p class="err">Не удалось проверить: {{ update.error }}</p>
+    {% elif update.newer %}<p class="warn">Вышла новая версия: <b>{{ update.latest }}</b>. <a href="{{ update.url }}" target="_blank" rel="noopener">Страница выпуска</a>. Скачайте установщик и запустите его поверх: данные не изменятся. Перед обновлением сделайте резервную копию.</p>
+    {% else %}<p class="ok">Установлена последняя версия ({{ update.latest }}).</p>{% endif %}
+  {% endif %}
+</div>
+{% endblock %}
