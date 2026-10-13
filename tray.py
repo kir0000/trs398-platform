@@ -131,6 +131,7 @@ def run_console_tool(name: str) -> int:
         sys.stdin = open("CONIN$", "r", encoding="utf-8")
         sys.stdout = sys.stderr = open("CONOUT$", "w", encoding="utf-8")
     code = 0
+    quiet = "--yes" in sys.argv[2:]                          # started by load-test-db.bat: no pause when everything went well
     try:
         import importlib
         sys.path.insert(0, str(base_dir() / "tools"))
