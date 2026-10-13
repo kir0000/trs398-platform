@@ -117,7 +117,35 @@ def lan_address(port: int) -> str:
         return f"http://{socket.gethostname()}:{port}"
 
 
+def run_console_tool(name: str) -> int:
+    """`TRS398.exe restore|verify`: the tools of the folder tools/ in a console window of their own."""
+    import ctypes
+    if ctypes.windll.kernel32.AllocConsole():
+        sys.stdin = open("CONIN$", "r", encoding="utf-8")
+        sys.stdout = sys.stderr = open("CONOUT$", "w", encoding="utf-8")
+    code = 0
+    try:
+        import importlib
+        sys.path.insert(0, str(base_dir() / "tools"))
+        sys.argv = [name] + sys.argv[2:]
+        importlib.import_module({"restore": "restore", "verify": "verify_backup"}[name]).main()
+    except SystemExit as e:
+        code = 0 if e.code in (None, 0) else 1
+        if e.code not in (None, 0):
+            print(e.code)
+    except Exception as e:                                  # noqa: BLE001
+        code = 1
+        print(f"Error: {e}")
+    try:
+        input("\nEnter - закрыть / close ")
+    except EOFError:
+        pass
+    return code
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] in ("restore", "verify"):
+        return run_console_tool(sys.argv[1])
     import pystray
     settings = load_settings()
     port = int(settings["port"])
@@ -139,6 +167,12 @@ def main() -> int:
     def open_data(icon, item):
         os.startfile(os.environ["TRS_DATA"])  # noqa: S606
 
+    def restore(icon, item):
+        state["server"].stop()
+        cmd = [sys.executable, "restore"] if getattr(sys, "frozen", False) else [sys.executable, str(Path(__file__).resolve()), "restore"]
+        subprocess.Popen(cmd, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        icon.stop()
+
     def toggle_autostart(icon, item):
         set_autostart(not autostart_enabled())
 
@@ -159,6 +193,7 @@ def main() -> int:
         pystray.MenuItem("Открыть программу", open_app, default=True),
         pystray.MenuItem("Сделать резервную копию", backup_now),
         pystray.MenuItem("Папка с данными", open_data),
+        pystray.MenuItem("Восстановить из копии…", restore),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Запускать вместе с Windows", toggle_autostart, checked=lambda item: autostart_enabled()),
         pystray.MenuItem("Разрешить подключение с других компьютеров", toggle_lan, checked=lambda item: settings["lan"]),

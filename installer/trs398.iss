@@ -34,6 +34,8 @@ Source: "..\build\dist\TRS398\*"; DestDir: "{app}"; Flags: recursesubdirs ignore
 
 [Icons]
 Name: "{group}\TRS-398"; Filename: "{app}\TRS398.exe"
+Name: "{group}\Восстановить из копии"; Filename: "{app}\TRS398.exe"; Parameters: "restore"
+Name: "{group}\Проверить копию"; Filename: "{app}\TRS398.exe"; Parameters: "verify"
 Name: "{autodesktop}\TRS-398"; Filename: "{app}\TRS398.exe"; Tasks: desktopicon
 
 [Registry]
