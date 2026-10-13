@@ -127,8 +127,8 @@ def set_copy_dir(raw: str) -> tuple[bool, str]:
 
 def keep_days() -> int:
     try:
-        return max(1, int(os.environ.get("BACKUP_KEEP_DAYS", "30")))
-    except ValueError:
+        return max(1, int(os.environ.get("BACKUP_KEEP_DAYS") or settings.load()["backup_keep_days"]))
+    except (ValueError, TypeError):
         return 30
 
 
@@ -204,8 +204,8 @@ def due(now: datetime | None = None) -> bool:
     """A daily copy is due when the hour of the day (BACKUP_HOUR, local time) has come and today's copy does not exist yet."""
     now = now or datetime.now()
     try:
-        hour = int(os.environ.get("BACKUP_HOUR", "2"))
-    except ValueError:
+        hour = int(os.environ.get("BACKUP_HOUR") or settings.load()["backup_hour"])
+    except (ValueError, TypeError):
         hour = 2
     if now.hour < hour:
         return False

@@ -8,6 +8,7 @@ Settings (port, network access) are kept in <data>/settings.json. Only one copy 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import subprocess
@@ -149,6 +150,34 @@ def run_console_tool(name: str) -> int:
     return code
 
 
+class Controller:
+    """Runs the server and follows the settings file: a change of the port or of the network access (made on the page "Settings"
+    or in the tray menu) restarts the server. A port that another program uses is refused and the old value is put back."""
+
+    def __init__(self, settings: dict):
+        self.port, self.lan = int(settings["port"]), bool(settings["lan"])
+        self.server = Server(self.port, self.lan)
+        self.server.start()
+
+    @property
+    def url(self) -> str:
+        return f"http://localhost:{self.port}"
+
+    def sync(self, wanted: dict) -> str:
+        """'same', 'restarted' or 'busy' (the wanted port is used by another program; the file is corrected)."""
+        port, lan = int(wanted["port"]), bool(wanted["lan"])
+        if (port, lan) == (self.port, self.lan):
+            return "same"
+        if port != self.port and port_busy(port):
+            save_settings({**wanted, "port": self.port})
+            return "busy"
+        self.server.stop()
+        self.port, self.lan = port, lan
+        self.server = Server(port, lan)
+        self.server.start()
+        return "restarted"
+
+
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] in ("restore", "verify", "selftest"):
         return run_console_tool(sys.argv[1])
@@ -158,12 +187,26 @@ def main() -> int:
     if port_busy(port):                                     # a copy is already running: just open it
         webbrowser.open(f"http://localhost:{port}")
         return 0
-    state = {"server": Server(port, settings["lan"])}
-    state["server"].start()
-    url = f"http://localhost:{port}"
+    ctl = Controller(settings)
+    done = threading.Event()
 
     def open_app(icon=None, item=None):
-        webbrowser.open(url)
+        webbrowser.open(ctl.url)
+
+    def watch():                                            # the page "Settings" only writes the file; the icon applies it
+        while not done.wait(3):
+            try:
+                result = ctl.sync(load_settings())
+            except Exception:                               # noqa: BLE001
+                logging.getLogger("trs398").exception("applying the settings failed")
+                continue
+            if result == "busy":
+                icon.notify("Этот порт занят другой программой, прежний порт сохранён.", "TRS-398")
+            elif result == "restarted":
+                msg = f"Настройки применены: {ctl.url}"
+                if ctl.lan:
+                    msg += f"{chr(10)}Другие компьютеры сети: {lan_address(ctl.port)}"
+                icon.notify(msg, "TRS-398")
 
     def backup_now(icon, item):
         from app import backups
@@ -180,7 +223,8 @@ def main() -> int:
         os.startfile(path)  # noqa: S606
 
     def restore(icon, item):
-        state["server"].stop()
+        done.set()
+        ctl.server.stop()
         cmd = [sys.executable, "restore"] if getattr(sys, "frozen", False) else [sys.executable, str(Path(__file__).resolve()), "restore"]
         subprocess.Popen(cmd, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
         icon.stop()
@@ -188,17 +232,13 @@ def main() -> int:
     def toggle_autostart(icon, item):
         set_autostart(not autostart_enabled())
 
-    def toggle_lan(icon, item):
-        settings["lan"] = not settings["lan"]
-        save_settings(settings)
-        state["server"].stop()
-        state["server"] = Server(port, settings["lan"])
-        state["server"].start()
-        if settings["lan"]:
-            icon.notify(f"Другие компьютеры сети: {lan_address(port)}\nПри первом включении Windows спросит разрешение брандмауэра.", "TRS-398")
+    def toggle_lan(icon, item):                             # the watcher restarts the server and shows the address
+        current = load_settings()
+        save_settings({**current, "lan": not current["lan"]})
 
     def quit_app(icon, item):
-        state["server"].stop()
+        done.set()
+        ctl.server.stop()
         icon.stop()
 
     menu = pystray.Menu(
@@ -209,12 +249,13 @@ def main() -> int:
         pystray.MenuItem("Журнал ошибок", open_log),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Запускать вместе с Windows", toggle_autostart, checked=lambda item: autostart_enabled()),
-        pystray.MenuItem("Разрешить подключение с других компьютеров", toggle_lan, checked=lambda item: settings["lan"]),
+        pystray.MenuItem("Разрешить подключение с других компьютеров", toggle_lan, checked=lambda item: bool(load_settings()["lan"])),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Выход", quit_app),
     )
     icon = pystray.Icon(APP_NAME, make_icon(), "TRS-398", menu)
     threading.Timer(1.5, open_app).start()
+    threading.Thread(target=watch, name="trs398-settings", daemon=True).start()
     icon.run()
     return 0
 

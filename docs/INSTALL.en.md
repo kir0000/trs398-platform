@@ -30,6 +30,10 @@ Make a backup before updating (icon menu). If the new version changes the struct
 
 "Settings → Apps → TRS-398 → Uninstall". The data (`%LOCALAPPDATA%\TRS398\data`) are removed only by you, by hand.
 
+## Settings
+
+Administrator: the menu "Settings". The port, the access from other computers, the default language, the hour of the automatic backup and the keeping period of the backups (the folder of the second copy: the "Backups" page). A change of the port or of the network access is applied by the tray icon within a few seconds. The environment variables `TRS_LANG`, `BACKUP_HOUR`, `BACKUP_KEEP_DAYS`, `BACKUP_COPY_DIR`, if set, are stronger than the settings.
+
 ## If something does not work
 
 | What you see | What to do |

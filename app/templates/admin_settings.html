@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<h1>Настройки</h1>
+{% if saved %}<div class="card ok">Сохранено. Порт и доступ с других компьютеров применяет значок программы в трее в течение нескольких секунд. Если изменился порт, откройте программу по новому адресу.</div>{% endif %}
+{% if errors %}<div class="card err">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+{% if env_overrides %}<div class="card warn">Значения этих параметров заданы переменными окружения и сильнее настроек: {{ env_overrides|join(', ') }}.</div>{% endif %}
+<form method="post" action="/admin/settings" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <h2>Доступ</h2>
+  <p><label><input type="checkbox" name="lan" value="1" {{ 'checked' if s.lan }}> Разрешить подключение с других компьютеров сети</label><br>
+    <span class="muted" style="font-size:13px">Адрес для коллег: <code>{{ lan_url }}</code>. Соединение не шифруется: только внутренняя сеть. При первом включении Windows спросит разрешение брандмауэра.</span></p>
+  <p><label>Порт <input name="port" type="number" min="1024" max="65535" value="{{ s.port }}" style="width:90px"></label>
+    <span class="muted" style="font-size:13px">по умолчанию 8000; меняйте, если он занят другой программой</span></p>
+  <h2>Язык</h2>
+  <p><label>Язык по умолчанию <select name="language"><option value="ru" {{ 'selected' if s.language == 'ru' }}>русский</option><option value="en" {{ 'selected' if s.language == 'en' }}>English</option></select></label>
+    <span class="muted" style="font-size:13px">каждый пользователь может переключить язык кнопкой вверху</span></p>
+  <h2>Резервные копии</h2>
+  <p><label>Автоматическая копия после <input name="backup_hour" type="number" min="0" max="23" value="{{ s.backup_hour }}" style="width:60px"> часов</label>
+    (время компьютера; если в это время программа была выключена, копия делается при следующем запуске)</p>
+  <p><label>Хранить копии <input name="backup_keep_days" type="number" min="1" max="3650" value="{{ s.backup_keep_days }}" style="width:80px"> дней</label></p>
+  <p class="muted" style="font-size:13px;margin:0 0 10px">Папка второй копии: {% if copy_dir %}<code>{{ copy_dir }}</code>{% else %}не задана{% endif %}; настраивается на странице <a href="/admin/backups">«Копии»</a>.</p>
+  <button class="primary">Сохранить</button>
+</form>
+{% endblock %}
