@@ -167,6 +167,7 @@ def save(cat: dict[str, str]) -> None:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--stale", action="store_true", help="list the catalog entries that no template or source file uses any more")
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--merge")
     ap.add_argument("--todo")
@@ -191,6 +192,12 @@ def main():
         print(f"merged {len(tr)} entries; catalog has {len(cat)}")
         return
     found = collect()
+    if a.stale:                      # data-driven texts (demo notes, names) are not in the sources: look at the list before deleting
+        unused = sorted(k for k in cat if norm(k) not in found)
+        print(f"{len(unused)} catalog entries are not found in the templates or sources:")
+        for k in unused:
+            print("  ", k[:100])
+        return
     cat_norm = {norm(k): v for k, v in cat.items()}
     missing = sorted(s for s in found if not cat_norm.get(s))
     print(f"phrases found: {len(found)}, translated: {len(found) - len(missing)}, to translate: {len(missing)}")

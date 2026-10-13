@@ -101,8 +101,8 @@ Release: a tag `v2…` starts the build of the installer and the zip in GitHub A
 ### Languages
 
 Russian is the source language of the interface, English comes from the phrase catalog `app/i18n/en.json` (`app/i18n.py` translates the finished page).
-After changing any Russian text of the interface: `python tools/i18n_extract.py` lists the phrases without English, `--todo file.json` exports them for translation, `--merge file.json` loads the translations.
-`tests/test_i18n.py` fails if a phrase has no English text or Russian remains on a page in English mode. The default language is set by `TRS_LANG` (`ru` or `en`).
+After changing any Russian text of the interface: `python tools/i18n_extract.py` lists the phrases without English, `--todo file.json` exports them for translation, `--merge file.json` loads the translations, `--stale` lists the catalog entries that are no longer in the templates.
+The automatic checks (`tests/test_i18n.py`, `tests/test_i18n_lint.py`: phrase boundaries, a clean catalog, Russian words glued to variables in the templates, every status of a record on every page for every role in English) fail if a phrase has no English text or Russian remains on a page in English mode. The default language is set by `TRS_LANG` (`ru` or `en`).
 
 ## Structure
 
