@@ -134,7 +134,19 @@ def _translate_attr_value(name: str, value: str, lang: str) -> str:
     return value if out == plain else htmllib.escape(out, quote=True)
 
 
+_CSS_STRING = re.compile(r'"([^"\n]*[А-Яа-яЁё][^"\n]*)"')
+_HANDLER = re.compile(r'\b(on(?:submit|click|change))="([^"]*)"')
+
+
+def _translate_handler(m: re.Match) -> str:
+    """The texts of confirm('...') in an event attribute."""
+    code = htmllib.unescape(m.group(2))
+    out = _JS_STRING.sub(_js_literal, code)
+    return m.group(0) if out == code else f'{m.group(1)}="{htmllib.escape(out, quote=True)}"'
+
+
 def _translate_tag(tag: str, lang: str) -> str:
+    tag = _HANDLER.sub(_translate_handler, tag)
     tag = _ATTR.sub(lambda m: f'{m.group(1)}="{_translate_attr_value(m.group(1), m.group(2), lang)}"', tag)
     if lang == "en" and tag[:6].lower() == "<input":
         tag = _VALUE.sub(lambda m: f'value="{decimal_dot(m.group(1))}"', tag)
@@ -179,8 +191,10 @@ def translate_html(html: str, lang: str, whole_page: bool = True) -> str:
         if not token:
             continue
         low = token[:7].lower()
-        if token.startswith("<!--") or low.startswith("<style"):
+        if token.startswith("<!--"):
             out.append(token)
+        elif low.startswith("<style"):                       # the strings of the style sheet (the page footer of the PDF)
+            out.append(_CSS_STRING.sub(lambda m: '"' + translate_plain(m.group(1)) + '"', token))
         elif low.startswith("<script"):
             out.append(_translate_script(token, lang))
         elif token.startswith("<"):

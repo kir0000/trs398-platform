@@ -133,3 +133,24 @@ def test_pages_load_no_script_or_style_from_the_internet_and_static_files_are_se
     for name, marker in (("htmx.min.js", "htmx"), ("plotly.min.js", "plotly.js v2.35.2")):
         r = anonymous.get(f"/static/{name}")
         assert r.status_code == 200 and marker in r.text[:2000], name
+
+
+def test_confirm_dialogs_in_event_attributes_are_translated():
+    from app import i18n
+    html = '''<form onsubmit="return confirm('Аннулировать утверждённую запись № 2024-0001? Она исчезнет из трендов и бюджета неопределённости, но останется в базе.')">'''
+    out = i18n.translate_html(html, "en", False)
+    assert "Annul approved record No. 2024-0001" in out and "Аннулировать" not in out
+
+
+def test_a_phrase_next_to_a_variable_that_starts_with_a_russian_letter_is_translated():
+    from app import i18n
+    html = '<div class="mark">НЕ УТВЕРЖДЕНО: статус «<span>черновик</span>». Документ предварительный.</div>'
+    out = i18n.translate_html(html, "en", False)
+    assert "NOT APPROVED" in out and "preliminary" in out and "УТВЕРЖДЕНО" not in out
+
+
+def test_the_page_footer_of_the_pdf_is_translated():
+    from app import i18n
+    html = '<style>@page{@bottom-center{content:"стр. " counter(page) " / " counter(pages) "   ·   TRS-398 Rev.1 электроны · протокол №2026-0001";}}</style>'
+    out = i18n.translate_html(html, "en", False)
+    assert "p. " in out and "electrons" in out and "стр." not in out and "электроны" not in out
