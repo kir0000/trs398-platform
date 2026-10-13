@@ -155,3 +155,11 @@ def test_imported_journal_rows_need_a_separate_confirmation(world, client):
     assert post(adm, f"/equipment/beam/{bid}/purge", page="/equipment").status_code == 409
     assert post(adm, f"/equipment/beam/{bid}/purge", dict(with_legacy="1"), page="/equipment").status_code == 303
     assert q(client, "SELECT count(*) FROM legacy_journal WHERE beam_id=%s", bid)[0][0] == 0
+
+
+def test_the_fff_option_is_hidden_for_electrons_and_ignored_by_the_server(world, client):
+    html = world["adm"].get("/equipment").text
+    assert 'class="fff-opt"' in html and "this.value==='electron'" in html          # the checkbox disappears when electrons are chosen
+    lid = q(client, "SELECT id FROM linacs ORDER BY id LIMIT 1")[0][0]
+    assert post(world["adm"], "/equipment/beam", dict(linac_id=lid, modality="electron", energy="22", fff="1"), page="/equipment").status_code == 303
+    assert q(client, "SELECT fff FROM beams WHERE linac_id=%s AND modality='electron' AND nominal_energy=22", lid)[0][0] == 0
