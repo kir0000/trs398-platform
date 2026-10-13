@@ -17,7 +17,7 @@ It runs on an ordinary Windows laptop, **without Docker and without installing a
 Windows may show a "SmartScreen" warning (the program has no paid digital signature): "More info → Run anyway".
 Details: [docs/INSTALL.en.md](docs/INSTALL.en.md), Russian: [docs/INSTALL.md](docs/INSTALL.md).
 
-Tray icon menu: open the program; make a backup; data folder; restore from a backup; start with Windows;
+Tray icon menu: open the program; make a backup; data folder; restore from a backup; error log; start with Windows;
 allow connections from other computers; exit. Closing the browser window does not stop the program, "Exit" does.
 
 **Several physicists.** The program runs on the laptop of one of them; the others open `http://laptop-name:8000` in a browser
