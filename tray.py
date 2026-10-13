@@ -32,6 +32,11 @@ def choose_data_dir() -> Path:
     return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / APP_NAME / "data"
 
 
+if getattr(sys, "frozen", False):                          # the released build shows its version without "+dev"
+    try:
+        os.environ.setdefault("TRS_VERSION", (Path(sys._MEIPASS) / "VERSION").read_text(encoding="utf-8").strip())
+    except OSError:
+        pass
 os.environ["TRS_DATA"] = str(choose_data_dir())
 Path(os.environ["TRS_DATA"]).mkdir(parents=True, exist_ok=True)
 
