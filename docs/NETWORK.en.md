@@ -8,6 +8,7 @@ The department's servers that are medical devices are not used for this: any ord
 1. On the laptop with the program right-click the tray icon and tick **"Allow connections from other computers"**.
    The program shows an address like `http://192.168.1.20:8000`.
 2. At the first switching on Windows asks for the firewall permission: tick **"Private networks"** and click "Allow".
+   This is the only action that needs Windows administrator rights (to allow incoming connections for the program). If you do not have them, ask the administrator of the computer to click "Allow" once or to create a rule for port 8000. Work on one laptop (`http://localhost:8000`) needs no administrator rights.
 3. The others open this address in a browser and sign in with their own account (created by the administrator in "Users").
    The name of the laptop (`http://laptop-name:8000`) is handier than the address, which may change.
 4. Switch off: clear the tick in the same menu.

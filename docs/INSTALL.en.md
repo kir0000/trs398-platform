@@ -4,6 +4,8 @@ Windows 10 or 11 is needed. Docker, Python and database servers are **not** need
 
 ## Installing
 
+**Administrator rights are needed neither for installing nor for working**: the installer writes only into the user profile, the portable version runs from any folder you can write to (desktop, Documents, a USB stick). The exception: the firewall permission for access from other laptops ([NETWORK.en.md](NETWORK.en.md)). If a policy of the organization blocks the start (AppLocker, antivirus), the IT administrator has to add an exception for the program folder.
+
 1. From the **Releases** page of the repository download `TRS398-setup-….exe` and run it. No administrator rights are needed, the program goes into your user profile
    (`%LOCALAPPDATA%\Programs\TRS398`); you may choose another folder and tick "start with Windows".
 2. If Windows says "Windows protected your PC" (SmartScreen): click **More info → Run anyway**. This happens with any program without a paid signature.
