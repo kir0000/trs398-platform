@@ -35,6 +35,7 @@ Make a backup before updating (icon menu).
 | What you see | What to do |
 |---|---|
 | The icon is there but the page does not open | Click the icon. If port 8000 is used by another program, change `port` in `settings.json` in the data folder (for example 8100) and restart. |
+| Something does not work | Icon menu → "Error log" opens the file `app.log` in the data folder; send it to the developer (it holds no measurement data or passwords). |
 | "PDF unavailable" | Edge or Chrome is needed. Fallback: the "Print" button → "Save as PDF". |
 | The antivirus removed or blocked the program | Add the program folder to the exceptions. The build is not signed. |
 | Forgot the administrator password | Another administrator resets it in "Users". If there is only one: restore a backup where the password is known, or start with an empty database (see README). |

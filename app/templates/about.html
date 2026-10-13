@@ -6,6 +6,7 @@
   <p>Версия: <b>{{ version }}</b></p>
   <p>Папка с данными: <code>{{ data_dir }}</code></p>
   <p>Файл базы: <code>{{ db_file }}</code>, {{ db_mb }} МБ</p>
+  <p>Журнал ошибок: <code>{{ log_file }}</code> (пришлите его, если что-то работает не так)</p>
   <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0">{{ backup.message }}</p>
 </div>
 <div class="card"><h2>Обновления</h2>

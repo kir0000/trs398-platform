@@ -3,6 +3,7 @@ made every day inside the program and kept for BACKUP_KEEP_DAYS days. The restor
 from __future__ import annotations
 
 import gzip
+import logging
 import os
 import shutil
 import sqlite3
@@ -17,6 +18,7 @@ from app import db
 STALE_AFTER = timedelta(hours=36)
 PATTERN = "trs398_*.db.gz"
 _lock = threading.Lock()
+log = logging.getLogger("trs398.backups")
 
 
 def backup_dir() -> Path:
@@ -73,9 +75,11 @@ def recent(limit: int = 15) -> list[dict]:
 def request_now() -> bool:
     """Make a copy right now (the button of the administrator). False if the folder is not writable."""
     try:
-        make()
+        path = make()
+        log.info("backup made: %s", path.name)
         return True
     except OSError:
+        log.exception("the backup failed")
         return False
 
 
@@ -116,7 +120,7 @@ def start_scheduler(interval_s: int = 600) -> threading.Thread:
                 if due():
                     make()
             except Exception:                      # a failed copy must never stop the program; the page of backups shows that it is stale
-                pass
+                log.exception("the daily backup failed")
             time.sleep(interval_s)
     t = threading.Thread(target=loop, name="trs398-backup", daemon=True)
     t.start()

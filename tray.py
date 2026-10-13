@@ -177,6 +177,12 @@ def main() -> int:
     def open_data(icon, item):
         os.startfile(os.environ["TRS_DATA"])  # noqa: S606
 
+    def open_log(icon, item):
+        from app import applog
+        path = applog.log_path()
+        path.touch(exist_ok=True)
+        os.startfile(path)  # noqa: S606
+
     def restore(icon, item):
         state["server"].stop()
         cmd = [sys.executable, "restore"] if getattr(sys, "frozen", False) else [sys.executable, str(Path(__file__).resolve()), "restore"]
@@ -204,6 +210,7 @@ def main() -> int:
         pystray.MenuItem("Сделать резервную копию", backup_now),
         pystray.MenuItem("Папка с данными", open_data),
         pystray.MenuItem("Восстановить из копии…", restore),
+        pystray.MenuItem("Журнал ошибок", open_log),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Запускать вместе с Windows", toggle_autostart, checked=lambda item: autostart_enabled()),
         pystray.MenuItem("Разрешить подключение с других компьютеров", toggle_lan, checked=lambda item: settings["lan"]),

@@ -20,7 +20,7 @@ from app.notation import sym, sym_plain
 from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
-from app import dbops, updates
+from app import applog, dbops, updates
 from app.pdf import PdfUnavailable, html_to_pdf
 from app.db import audit, connect, data_dir, db_path, get_db, migrate, session_secret
 from app.security import (MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, LoginThrottle, can_create, can_review,
@@ -67,6 +67,7 @@ PURGE_SCOPES = {"measurements": "Измерения и результаты", "l
 
 @asynccontextmanager
 async def lifespan(_app):
+    log_handler = applog.setup(app_version())
     conn = connect()
     try:
         migrate(conn)
@@ -84,6 +85,7 @@ async def lifespan(_app):
     if os.environ.get("TRS_NO_SCHEDULER") != "1":
         backups.start_scheduler()
     yield
+    applog.teardown(log_handler)
 
 
 app = FastAPI(title="TRS-398 Rev.1", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -287,7 +289,7 @@ def app_version() -> str:
 
 def about_context(**extra):
     path = db_path()
-    return dict(version=app_version(), data_dir=str(data_dir()), db_file=str(path),
+    return dict(version=app_version(), data_dir=str(data_dir()), db_file=str(path), log_file=str(applog.log_path()),
                 db_mb=round(path.stat().st_size / 1048576, 1) if path.exists() else 0, backup=backups.latest(), **extra)
 
 

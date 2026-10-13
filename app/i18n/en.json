@@ -62,6 +62,7 @@
   "(полярность пользователя)": "(user polarity)",
   "(при +": "(at +",
   "(при −": "(at −",
+  "(пришлите его, если что-то работает не так)": "(send it if something does not work)",
   "(разд. 6.3 TRS-398 Rev.1).": "(sec. 6.3 of TRS-398 Rev.1).",
   "(расчёт/измерение) — см. примечания (b)–(e) выше. Источник: TRS-398 Rev.1 (МАГАТЭ), разд. 7.10, Табл. 24–25, стр. 144–148; GUM — ISO/IEC Guide 98-3:2008 (JCGM 100:2008).": "(calculation/measurement): see notes (b)–(e) above. Source: TRS-398 Rev.1 (IAEA), sec. 7.10, Tables 24–25, pp. 144–148; GUM: ISO/IEC Guide 98-3:2008 (JCGM 100:2008).",
   "(расчётные значения, Табл. 24)": "(calculated values, Table 24)",
@@ -228,6 +229,7 @@
   "C⁺ (выше CL)": "C⁺ (above CL)",
   "C⁻ (ниже CL)": "C⁻ (below CL)",
   "DEMO: настройка выходной дозы": "DEMO: output dose adjustment",
+  "DEMO: общий сдвиг группы энергий после сервисных работ": "DEMO: common shift of a group of energies after service work",
   "DEMO: общий сдвиг после обслуживания монитора": "DEMO: common shift after monitor service",
   "DEMO: отклонение вне допуска, назначена перепроверка": "DEMO: deviation out of tolerance, a recheck is scheduled",
   "DEMO: плановая проверка": "DEMO: routine check",
@@ -533,6 +535,7 @@
   "Есть поля с недопустимыми значениями": "Some fields have invalid values",
   "Есть утверждённые, замещённые или аннулированные записи (": "There are approved, superseded or annulled records (",
   "Журнал аудита": "Audit log",
+  "Журнал ошибок:": "Error log:",
   "Жёлтые ячейки (Тип B) можно скорректировать под фактические условия учреждения и аккредитацию поверочной лаборатории — см. примечания (b)–(d) выше. Источник: TRS-398 Rev.1 (МАГАТЭ), разд. 6.8, Табл. 17, стр. 114–116; GUM — ISO/IEC Guide 98-3:2008 (JCGM 100:2008 «Evaluation of measurement data — Guide to the expression of uncertainty in measurement»).": "The yellow cells (Type B) can be adjusted to the actual conditions of the institution and the accreditation of the calibration laboratory: see notes (b)–(d) above. Source: TRS-398 Rev.1 (IAEA), sec. 6.8, Table 17, pp. 114–116; GUM: ISO/IEC Guide 98-3:2008 (JCGM 100:2008 “Evaluation of measurement data — Guide to the expression of uncertainty in measurement”).",
   "Жёлтые ячейки (Тип B) можно скорректировать под фактические условия учреждения, аккредитацию поверочной лаборатории и способ определения": "The yellow cells (Type B) can be adjusted to the actual conditions of the institution, the accreditation of the calibration laboratory and the way of determining",
   "Жёлтые ячейки (Тип B) можно скорректировать под фактические условия учреждения, аккредитацию поверочной лаборатории и способ определения kQ,Qo (расчёт/измерение) — см. примечания (b)–(e) выше. Источник: TRS-398 Rev.1 (МАГАТЭ), разд. 7.10, Табл. 24–25, стр. 144–148; GUM — ISO/IEC Guide 98-3:2008 (JCGM 100:2008).": "The yellow cells (Type B) can be adjusted to the actual conditions of the institution, the accreditation of the calibration laboratory and the way of determining kQ,Qo (calculation/measurement): see notes (b)–(e) above. Source: TRS-398 Rev.1 (IAEA), sec. 7.10, Tables 24–25, pp. 144–148; GUM: ISO/IEC Guide 98-3:2008 (JCGM 100:2008).",
@@ -1628,6 +1631,5 @@
   "☑ да": "☑ yes",
   "⚠ проверьте": "⚠ check",
   "✓ Сохранено": "✓ Saved",
-  "✓ готов": "✓ ready",
-  "DEMO: общий сдвиг группы энергий после сервисных работ": "DEMO: common shift of a group of energies after service work"
+  "✓ готов": "✓ ready"
 }
