@@ -22,7 +22,7 @@ The equipment is changed by the administrator; a physicist and a reviewer see an
   “To the archive” (the beam disappears from the choices of a new measurement, its records and trends stay; “Restore from the archive” undoes it) and, only if all records of the beam are drafts or returned ones,
   “Delete the beam and its drafts” (imported journal rows are deleted only with a separate tick). Approved, superseded and annulled records are history and cannot be deleted;
   annul a wrong approved record first (section 4) and send the beam to the archive.
-- **Dosimetry.** Chambers (type and serial number) with the history of calibrations, the validity is highlighted (expires within 90 days, expired), electrometers, the “New calibration” form.
+- **Dosimetry.** Chambers (type and serial number) with the history of calibrations, the validity is highlighted (expires within the next 3 months, expired); such chambers are also reminded about by a red or yellow banner at the top of the “Measurements” page (by the newest calibration of each chamber), electrometers, the “New calibration” form.
 - **Reference values.** The sets saved with the button “Make these values the reference” on the measurement sheet: for each pair “beam + chamber” you see who saved them and when and what they contain; the administrator can delete a set.
 
 All parameters of sections 1–3 of the worksheet (chamber, *N*<sub>D,w</sub>, *Q*<sub>0</sub>, calibration conditions, electrometer, *k*<sub>elec</sub>,

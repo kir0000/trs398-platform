@@ -5,7 +5,7 @@ import hmac
 import os
 import secrets
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -506,7 +506,8 @@ def measurements(request: Request, status: str = "", user=Depends(current_user),
     for r in rows:
         r["label"] = beam_label(r)
     pending = conn.execute("SELECT count(*) AS n FROM measurement_sessions WHERE status = 'submitted'").fetchone()["n"]
-    return render(request, "list.html", user, rows=rows, status=status, pending=pending)
+    return render(request, "list.html", user, rows=rows, status=status, pending=pending,
+                  reminders=calibration_reminders(conn, date.today()))
 
 
 @app.get("/measurements/new", response_class=HTMLResponse)
@@ -1272,12 +1273,38 @@ def beam_readiness(b) -> dict:
     return {"hard": hard, "soft": soft, "state": "bad" if hard else "warn" if soft else "ok"}
 
 
+REMINDER_MONTHS = 3                                  # a chamber calibration is reminded about this many months before it expires
+
+
+def add_months(d: date, n: int) -> date:
+    m = d.month - 1 + n
+    year, month = d.year + m // 12, m % 12 + 1
+    last = (date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)).day
+    return date(year, month, min(d.day, last))
+
+
 def calibration_state(c, today) -> dict:
-    """Validity of a calibration: expired, soon (within 90 days) or valid."""
+    """Validity of a calibration: expired, soon (within the reminder period of 3 calendar months) or valid."""
     if not c.get("valid_until"):
         return {"state": "none", "days": None}
     days = (c["valid_until"] - today).days
-    return {"state": "expired" if days < 0 else "soon" if days <= 90 else "ok", "days": days}
+    return {"state": "expired" if days < 0 else "soon" if c["valid_until"] <= add_months(today, REMINDER_MONTHS) else "ok", "days": days}
+
+
+def calibration_reminders(conn, today) -> list[dict]:
+    """The chambers whose newest calibration has expired or expires within 3 months (the banner on the list of measurements)."""
+    rows = conn.execute("""SELECT ch.name AS chamber, cu.serial_no, cal.valid_until, cal.calibrated_on
+        FROM calibrations cal JOIN chamber_units cu ON cu.id = cal.chamber_unit_id JOIN chambers ch ON ch.id = cu.chamber_id
+        ORDER BY ch.name, cu.serial_no, cal.calibrated_on DESC, cal.id DESC""").fetchall()
+    newest = {}
+    for r in rows:
+        newest.setdefault((r["chamber"], r["serial_no"]), r)         # the first row of a unit is its newest calibration
+    out = []
+    for r in newest.values():
+        st = calibration_state(r, today)
+        if st["state"] in ("expired", "soon"):
+            out.append({**r, **st})
+    return sorted(out, key=lambda r: r["valid_until"])
 
 
 @app.get("/equipment", response_class=HTMLResponse)

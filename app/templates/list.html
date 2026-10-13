@@ -6,6 +6,9 @@
   {% if can_create %}<span><a class="btn primary" href="/measurements/new?modality=photon">+ Фотоны</a> <a class="btn primary" href="/measurements/new?modality=electron">+ Электроны</a></span>{% endif %}
 </div>
 {% if can_review and pending %}<div class="card warn">На проверке: {{ pending }}. <a href="/measurements?status=submitted">Показать</a></div>{% endif %}
+{% if reminders %}<div class="card {{ 'err' if reminders[0].state == 'expired' else 'warn' }}"><b>Калибровка камер:</b>
+  {% for r in reminders %}<div>{{ r.chamber }}, SN {{ r.serial_no }}: {% if r.state == 'expired' %}срок истёк {{ r.valid_until.strftime('%d.%m.%Y') }}, измерения с этой камерой запрещены{% else %}истекает {{ r.valid_until.strftime('%d.%m.%Y') }}, осталось дней: {{ r.days }}{% endif %}</div>{% endfor %}
+  <a href="/equipment?tab=dosimeters">Оборудование → Дозиметры</a></div>{% endif %}
 <div class="row" style="margin-bottom:10px">
   <a href="/measurements" class="btn">Все</a>
   {% for k, v in status_labels.items() %}<a href="/measurements?status={{ k }}" class="btn{{ ' primary' if status == k }}">{{ v }}</a>{% endfor %}
