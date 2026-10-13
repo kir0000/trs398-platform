@@ -1061,6 +1061,7 @@
   "Стабильность выхода ускорителя": "Linac output stability",
   "Стабильность камеры": "Chamber stability",
   "Статус": "Status",
+  "Статус по последнему отклонению: «наблюдение» при |откл.| > 1 %, «ДЕЙСТВИЕ» при > 2 %. Правила SPC и CUSUM как на странице «Тренды». Знак «+» / «−» показывает направление, значок ▲ / ▼ ставится только при |значении| > 1 %. Клик по заголовку сортирует.": "Status by the last deviation: “watch” at |dev.| > 1 %, “ACTION” at > 2 %. SPC and CUSUM rules as on the “Trends” page. The sign “+” / “−” shows the direction, the mark ▲ / ▼ appears only when |value| > 1 %. A click on a header sorts.",
   "Статус по последнему отклонению: «наблюдение» при |откл.| > 1 %, «ДЕЙСТВИЕ» при > 2 %. Правила SPC и CUSUM как на странице «Тренды». Клик по заголовку сортирует.": "Status by the last deviation: “watch” at |dev.| > 1 %, “ACTION” at > 2 %. The SPC and CUSUM rules are as on the “Trends” page. Click a header to sort.",
   "Стенка / окно ИК": "IC wall / window",
   "Стенка ИК": "IC wall",
@@ -1544,6 +1545,7 @@
   "срок калибровки истёк": "calibration expired",
   "стенка": "wall",
   "стенка:": "wall:",
+  "стр.": "p.",
   "сумма, %": "sum, %",
   "суммарная неопределённость": ", the combined uncertainty of",
   "текущего пучка": "of the current beam",
@@ -1607,6 +1609,5 @@
   "☑ да": "☑ yes",
   "⚠ проверьте": "⚠ check",
   "✓ Сохранено": "✓ Saved",
-  "✓ готов": "✓ ready",
-  "стр.": "p."
+  "✓ готов": "✓ ready"
 }

@@ -22,13 +22,13 @@
   <table class="sortable" data-filters><tr><th>Тип</th><th>Пучок</th><th>Записей</th><th>Последняя</th><th>Откл., %</th><th>Среднее, %</th><th>σ, %</th><th>Тренд, %/мес</th><th>Статус</th><th>За 3σ</th><th>Другие правила</th><th>CUSUM</th><th>Вне допуска</th><th>Последний сигнал</th></tr>
   {% for r in summaries %}<tr>
     <td>{{ r.label.split(' ', 1)[0] }}</td><td>{{ r.label.split(' ', 1)[1] }}</td><td>{{ r.n }}</td><td data-sort="{{ r.last_date.strftime('%d.%m.%Y') if r.last_date else '' }}">{{ r.last_date.strftime('%d.%m.%Y') if r.last_date else '—' }}</td>
-    <td data-sort="{{ r.last if r.last is not none else '' }}">{{ r.last|signed(2) }}</td><td data-sort="{{ r.mean if r.mean is not none else '' }}">{{ r.mean|signed(2) }}</td>
-    <td>{{ '%.2f'|format(r.sigma) if r.sigma else '—' }}</td><td data-sort="{{ r.trend if r.trend is not none else '' }}">{{ r.trend|signed(3) }}</td>
+    <td data-sort="{{ r.last if r.last is not none else '' }}">{{ r.last|signed_over(2, 1) }}</td><td data-sort="{{ r.mean if r.mean is not none else '' }}">{{ r.mean|signed_over(2, 1) }}</td>
+    <td>{{ '%.2f'|format(r.sigma) if r.sigma else '—' }}</td><td data-sort="{{ r.trend if r.trend is not none else '' }}">{{ r.trend|signed_over(3) }}</td>
     <td class="{{ 'ok' if r.status == 'норма' else 'warn' if r.status.startswith('наб') else 'err' }}">{{ r.status.split(':')[0] }}</td>
     <td>{{ r.n_3sigma or '' }}</td><td>{{ r.n_rules or '' }}</td><td>{{ r.n_cusum or '' }}</td><td class="{{ 'err' if r.out_of_tolerance }}">{{ r.out_of_tolerance or '' }}</td>
     <td>{{ r.last_signal.strftime('%d.%m.%Y') if r.last_signal else '' }}</td>
   </tr>{% endfor %}</table>
-  <p class="muted" style="font-size:12px;margin:6px 0 0">Статус по последнему отклонению: «наблюдение» при |откл.| &gt; 1 %, «ДЕЙСТВИЕ» при &gt; 2 %. Правила SPC и CUSUM как на странице «Тренды». Клик по заголовку сортирует.</p>
+  <p class="muted" style="font-size:12px;margin:6px 0 0">Статус по последнему отклонению: «наблюдение» при |откл.| &gt; 1 %, «ДЕЙСТВИЕ» при &gt; 2 %. Правила SPC и CUSUM как на странице «Тренды». Знак «+» / «−» показывает направление, значок ▲ / ▼ ставится только при |значении| &gt; 1 %. Клик по заголовку сортирует.</p>
 </div>
 
 <div class="card"><h2>Что показывает сравнение</h2>

@@ -41,7 +41,19 @@ def signed(x, digits: int = 2):
     return Markup(f'<span class="{"dev-up" if r > 0 else "dev-down"}">{"▲" if r > 0 else "▼"}</span> {abs(x):.{digits}f}')
 
 
-templates.env.filters.update(sym=sym, sym_plain=sym_plain, signed=signed)
+def signed_over(x, digits: int = 2, limit: float | None = None):
+    """A signed value (+0.09 / −0.12); an arrow (red ▲, orange ▼) is added only where |x| exceeds the limit."""
+    from markupsafe import Markup
+    if x is None:
+        return "—"
+    r = round(x, digits)
+    text = f"{abs(x):.{digits}f}" if r == 0 else f"{'+' if r > 0 else chr(0x2212)}{abs(x):.{digits}f}"
+    if limit is not None and abs(x) > limit:
+        return Markup(f'<span class="{"dev-up" if x > 0 else "dev-down"}">{"▲" if x > 0 else "▼"}</span> {text}')
+    return text
+
+
+templates.env.filters.update(sym=sym, sym_plain=sym_plain, signed=signed, signed_over=signed_over)
 from markupsafe import Markup as _Markup
 templates.env.globals.update(fa=lambda name: _Markup(fields.attrs(name)), fdatalists=lambda: _Markup(fields.datalists()))
 throttle = LoginThrottle()
