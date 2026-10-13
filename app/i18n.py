@@ -197,11 +197,37 @@ def _translate_script(script: str, lang: str) -> str:
     return head + body + tail
 
 
+class _NoTranslate:
+    """Follows the elements marked translate="no" (texts typed by people: reasons, comments); their content is left as written."""
+
+    def __init__(self):
+        self.tag = None
+        self.depth = 0
+
+    def feed(self, token: str) -> None:
+        m = re.match(r"<(/?)\s*([a-zA-Z0-9]+)([^>]*)>", token)
+        if not m or token.endswith("/>"):
+            return
+        closing, name, rest = m.group(1) == "/", m.group(2).lower(), m.group(3)
+        if self.tag is None:
+            if not closing and re.search(r'translate\s*=\s*"no"', rest):
+                self.tag, self.depth = name, 1
+        elif name == self.tag:
+            self.depth += -1 if closing else 1
+            if self.depth == 0:
+                self.tag = None
+
+    @property
+    def on(self) -> bool:
+        return self.tag is not None
+
+
 def translate_html(html: str, lang: str, whole_page: bool = True) -> str:
     """The page in the chosen language (Russian pages are returned untouched)."""
     if lang != "en":
         return _localize_ru(html, whole_page)
     out = []
+    keep = _NoTranslate()
     index_depth = 0                                           # inside <sub>/<sup>: names such as 20,10 keep their comma
     code_depth = 0                                            # inside <code>/<pre>: examples are shown as written
     for token in _TOKEN.split(html):
@@ -215,12 +241,15 @@ def translate_html(html: str, lang: str, whole_page: bool = True) -> str:
         elif low.startswith("<script"):
             out.append(_translate_script(token, lang))
         elif token.startswith("<"):
+            keep.feed(token)
             name = re.match(r"</?\s*([a-zA-Z0-9]+)", token)
             if name and name.group(1).lower() in ("sub", "sup"):
                 index_depth = max(0, index_depth + (-1 if token.startswith("</") else 1))
             if name and name.group(1).lower() in ("code", "pre"):
                 code_depth = max(0, code_depth + (-1 if token.startswith("</") else 1))
             out.append(_translate_tag(token, lang))
+        elif keep.on:
+            out.append(token)
         else:
             out.append(_translate_text_node(token, lang, index_depth > 0 or code_depth > 0))
     result = "".join(out)
@@ -232,8 +261,13 @@ def translate_html(html: str, lang: str, whole_page: bool = True) -> str:
 def leftovers(html: str) -> list[str]:
     """Russian fragments that are still on a page after translation (for the coverage test)."""
     found = []
+    keep = _NoTranslate()
     for token in _TOKEN.split(html):
         if not token or token.startswith("<!--") or token[:6].lower() == "<style":
+            continue
+        if token.startswith("<") and not token[:7].lower().startswith("<script"):
+            keep.feed(token)
+        elif keep.on:
             continue
         if token[:7].lower().startswith("<script"):
             body = token[token.index(">") + 1:-len("</script>")]

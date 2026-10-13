@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 import os
 import secrets
@@ -21,9 +22,9 @@ from app.notation import sym, sym_plain
 from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
-from app import applog, dbops, settings as app_settings, updates
+from app import applog, auditlog, dbops, settings as app_settings, updates
 from app.pdf import PdfUnavailable, html_to_pdf
-from app.db import audit, connect, data_dir, db_path, get_db, migrate, session_secret
+from app.db import audit, connect, data_dir, db_path, get_db, migrate, request_ip, session_secret, system_event
 from app.db import has_data as db_has_data, pending as db_pending
 from app.security import (MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, LoginThrottle, can_create, can_review,
                           hash_password, verify_password)
@@ -67,6 +68,17 @@ PURGE_SCOPES = {"measurements": "Измерения и результаты", "l
                 "all": "Всё: измерения, результаты и исторические журналы"}
 
 
+def note_restore():
+    """tools/restore.py leaves a marker; the program writes the record into the restored database at its start."""
+    marker = data_dir() / "restored.json"
+    try:
+        info = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    system_event("restore", "system", None, info)
+    marker.unlink(missing_ok=True)
+
+
 @asynccontextmanager
 async def lifespan(_app):
     log_handler = applog.setup(app_version())
@@ -83,6 +95,8 @@ async def lifespan(_app):
                 logging.getLogger("trs398").exception("the safety copy before the update failed")
                 raise
         migrate(conn)
+        if todo:
+            system_event("migration_applied", "system", None, {"names": todo})
         services.seed_chambers(conn)
         login, password = os.environ.get("BOOTSTRAP_ADMIN_LOGIN"), os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
         if login and password and not has_users(conn):
@@ -94,6 +108,8 @@ async def lifespan(_app):
         conn.commit()
     finally:
         conn.close()
+    system_event("app_start", "system", None, {"version": app_version()})
+    note_restore()
     if os.environ.get("TRS_NO_SCHEDULER") != "1":
         backups.start_scheduler()
     yield
@@ -104,6 +120,16 @@ app = FastAPI(title="TRS-398 Rev.1", lifespan=lifespan, docs_url=None, redoc_url
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")      # htmx and Plotly are served locally: no internet needed
 app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="lax", max_age=8 * 3600,
                    https_only=os.environ.get("HTTPS_ONLY") == "1")
+
+
+@app.middleware("http")
+async def remember_the_address(request: Request, call_next):
+    """The address the request came from goes into every audit record of this request (app.db.audit)."""
+    token = request_ip.set(request.client.host if request.client else None)
+    try:
+        return await call_next(request)
+    finally:
+        request_ip.reset(token)
 
 
 class NotAuthenticated(Exception):
@@ -267,10 +293,23 @@ async def login(request: Request, conn=Depends(get_db)):
     return RedirectResponse("/measurements", status_code=303)
 
 
+def system_event_for_user(uid, action, entity, entity_id=None, details=None):
+    """A record made by the program on behalf of a user outside a request transaction (the sign-out)."""
+    conn = connect()
+    try:
+        audit(conn, uid, action, entity, entity_id, details)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @app.post("/logout")
 async def logout(request: Request):
     form = await request.form()
     check_csrf(request, form)
+    uid = request.session.get("uid")
+    if uid:
+        system_event_for_user(uid, "logout", "users", uid)
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
 
@@ -800,7 +839,8 @@ async def edit(request: Request, sid: str, user=Depends(require("physicist", "ad
                  f"status = 'draft', review_comment = NULL WHERE id = %s",
                  [values[c] for c in cols] + [Jsonb(extra), s["id"]])
     save_results(conn, s["id"], res)
-    audit(conn, user["id"], "edit", "measurement", s["id"])
+    audit(conn, user["id"], "edit", "measurement", s["id"],
+          {"protocol_no": s["protocol_no"], "changes": auditlog.as_json(auditlog.diff(s, values))})
     return RedirectResponse(f"/measurements/{s['id']}", status_code=303)
 
 
@@ -1402,13 +1442,15 @@ async def rename_linac(request: Request, lid: str, user=Depends(require("admin")
     lid = int_or_404(lid, "Аппарат")
     if conn.execute("SELECT 1 FROM linacs WHERE name = %s AND id <> %s", (name, lid)).fetchone():
         raise HTTPException(409, "Аппарат с таким названием уже есть")
+    before = conn.execute("SELECT * FROM linacs WHERE id = %s", (lid,)).fetchone()
     row = conn.execute("""UPDATE linacs SET name = %s, site = NULLIF(%s, ''), model = NULLIF(%s, ''),
                            serial_no = NULLIF(%s, ''), city = NULLIF(%s, '') WHERE id = %s RETURNING id""",
                        (name, form_text(form, "site") or "", form_text(form, "model") or "",
                         form_text(form, "serial_no") or "", form_text(form, "city") or "", lid)).fetchone()
     if not row:
         raise HTTPException(404, "Аппарат не найден")
-    audit(conn, user["id"], "rename_linac", "linacs", lid, {"name": name})
+    after = conn.execute("SELECT * FROM linacs WHERE id = %s", (lid,)).fetchone()
+    audit(conn, user["id"], "rename_linac", "linacs", lid, {"changes": auditlog.as_json(auditlog.diff(before or {}, after))})
     return RedirectResponse(eq_back(form), status_code=303)
 
 
@@ -1643,7 +1685,7 @@ async def edit_calibration(request: Request, cid: str, user=Depends(require("adm
     values = parse_calibration(form, conn)
     conn.execute(f"UPDATE calibrations SET {', '.join(f'{k} = %s' for k in values)} WHERE id = %s",
                  list(values.values()) + [c["id"]])
-    audit(conn, user["id"], "edit_calibration", "calibrations", c["id"])
+    audit(conn, user["id"], "edit_calibration", "calibrations", c["id"], {"changes": auditlog.as_json(auditlog.diff(c, values))})
     return RedirectResponse(eq_back(form), status_code=303)
 
 
@@ -1658,6 +1700,7 @@ async def beam_params(request: Request, bid: str, user=Depends(require("admin"))
             return services.num(form.get(name), f.label, required=False, lo=f.lo, hi=f.hi)
         except services.InputError as e:
             raise HTTPException(422, str(e)) from None
+    before = conn.execute("SELECT * FROM beams WHERE id = %s", (int_or_404(bid, "Пучок"),)).fetchone()
     expected = number("exp_cgy_mu")
     zref_in, depth_in = number("exp_zref"), number("ref_depth")                      # both are checked even if only one is used
     exp_depth = (zref_in or depth_in) if expected else None                         # the depth of the reference point is the reference depth of the beam
@@ -1675,7 +1718,8 @@ async def beam_params(request: Request, bid: str, user=Depends(require("admin"))
                         int_or_404(bid, "Пучок"))).fetchone()
     if not row:
         raise HTTPException(404, "Пучок не найден")
-    audit(conn, user["id"], "beam_params", "beams", row["id"])
+    after = conn.execute("SELECT * FROM beams WHERE id = %s", (row["id"],)).fetchone()
+    audit(conn, user["id"], "beam_params", "beams", row["id"], {"changes": auditlog.as_json(auditlog.diff(before or {}, after))})
     back = eq_back(form)
     return RedirectResponse(f"{back}{'&' if '?' in back else '?'}saved={row['id']}#b{row['id']}", status_code=303)      # back to the same row
 
@@ -1718,7 +1762,8 @@ async def users_action(request: Request, user=Depends(require("admin")), conn=De
             if target["role"] == "admin" and role != "admin" and admins_left == 0:
                 raise HTTPException(409, "Нельзя снять права у последнего администратора")
             conn.execute("UPDATE users SET role = %s WHERE id = %s", (role, target["id"]))
-            audit(conn, user["id"], "set_role", "users", target["id"], {"role": role})
+            audit(conn, user["id"], "set_role", "users", target["id"], {"changes": {"role": [ROLE_LABELS.get(target["role"], target["role"]),
+                                                                                         ROLE_LABELS.get(role, role)]}})
         elif action in ("deactivate", "activate"):
             if action == "deactivate" and target["role"] == "admin" and admins_left == 0:
                 raise HTTPException(409, "Нельзя отключить последнего администратора")
@@ -1826,8 +1871,31 @@ async def purge(request: Request, user=Depends(require("admin")), conn=Depends(g
                   scopes=PURGE_SCOPES, confirmation=PURGE_CONFIRMATION, result=result, error=error)
 
 
+def audit_filters_context(conn, request: Request):
+    f = auditlog.parse_filters(request.query_params)
+    users = conn.execute("SELECT id, login FROM users ORDER BY login").fetchall()
+    return f, users
+
+
 @app.get("/admin/audit", response_class=HTMLResponse)
-def audit_page(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    rows = conn.execute("""SELECT a.*, u.login FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
-                           ORDER BY a.id DESC LIMIT 300""").fetchall()
-    return render(request, "admin_audit.html", user, rows=rows)
+def audit_page(request: Request, page: int = 1, user=Depends(require("admin")), conn=Depends(get_db)):
+    f, users = audit_filters_context(conn, request)
+    rows, total = auditlog.search(conn, f, page)
+    names = auditlog.describe(conn, rows)
+    for r in rows:
+        r["label"] = auditlog.label(r["action"])
+        r["object"], r["url"] = names[(r["entity"], r["entity_id"])]
+        r["lines"] = auditlog.details_lines(r.get("details"))
+    pages = max(1, -(-total // auditlog.PAGE_SIZE))
+    query = "&".join(f"{k}={v}" for k, v in request.query_params.items() if k != "page" and v)
+    return render(request, "admin_audit.html", user, rows=rows, total=total, f=f, users=users, groups=auditlog.GROUPS,
+                  actions=sorted(auditlog.ACTIONS.items(), key=lambda kv: kv[1][0]), page=min(max(page, 1), pages), pages=pages, query=query)
+
+
+@app.get("/admin/audit.csv")
+def audit_csv(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+    f, _ = audit_filters_context(conn, request)
+    rows, _total = auditlog.search(conn, f, limit=50000)
+    audit(conn, user["id"], "audit_export", "system", None, {"rows": len(rows)})
+    return Response(auditlog.to_csv(conn, rows), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="audit.csv"'})

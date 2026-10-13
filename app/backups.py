@@ -64,6 +64,7 @@ def copy_out(src: Path) -> bool | None:
         _write_status(when=_read_status().get("when"), name=_read_status().get("name"), path=str(target_dir), error=str(e)[:200],
                       failed_at=datetime.now().isoformat(timespec="seconds"))
         log.exception("the second copy failed (%s)", target_dir)
+        db.system_event("backup_copy_failed", "backups", None, {"folder": str(target_dir), "error": str(e)[:200]})
         return False
 
 
@@ -219,9 +220,11 @@ def start_scheduler(interval_s: int = 600) -> threading.Thread:
         while True:
             try:
                 if due():
-                    make()
-            except Exception:                      # a failed copy must never stop the program; the page of backups shows that it is stale
+                    made = make()
+                    db.system_event("backup_auto", "backups", None, {"file": made.name})
+            except Exception as e:                 # a failed copy must never stop the program; the page of backups shows that it is stale
                 log.exception("the daily backup failed")
+                db.system_event("backup_failed", "backups", None, {"error": str(e)[:200]})
             time.sleep(interval_s)
     t = threading.Thread(target=loop, name="trs398-backup", daemon=True)
     t.start()

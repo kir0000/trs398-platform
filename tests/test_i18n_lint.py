@@ -109,3 +109,12 @@ def test_every_status_of_a_record_on_every_page_for_every_role_has_no_russian_le
                 bad[f"{who} {url}"] = left[:5]
     assert checked > 100
     assert not bad, "\n".join(f"{k}: {v}" for k, v in list(bad.items())[:15])
+
+
+def test_text_typed_by_people_is_left_as_written_in_a_translate_no_element():
+    html = '<td><b>Причина:</b> <span translate="no">введено по ошибке <i>и</i></span></td><td>введено по ошибке</td>'
+    out = i18n.translate_html(html, "en", False)
+    assert '<span translate="no">введено по ошибке <i>и</i></span>' in out                  # not even a nested tag is touched
+    assert "Reason:" in out and "entered by" in out.split("</span>")[-1]                     # the rest of the page is translated
+    assert i18n.leftovers(out) == [t for t in i18n.leftovers(out) if "введено" not in t or "entered by" in t]
+    assert i18n.translate_html(html, "ru", False) == html
