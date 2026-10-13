@@ -15,3 +15,5 @@ i18n_chunk*.json
 
 # release packages (tools/make_bundle.py)
 dist/
+build/
+*.spec.bak

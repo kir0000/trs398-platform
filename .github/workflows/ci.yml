@@ -3,10 +3,11 @@ name: ci
 on:
   push:
     branches: [main, v2]
+    tags: ["v2*"]
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -25,3 +26,23 @@ jobs:
       - run: python -m pytest -q tests
         env:
           PYTHONUTF8: "1"
+
+  windows:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v2')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pystray pillow pyinstaller
+      - run: choco install innosetup -y --no-progress
+      - run: python tools/build_windows.py --installer
+        env:
+          PYTHONUTF8: "1"
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" build/TRS398-setup-*.exe build/TRS398-portable-*.zip --title "TRS-398 $GITHUB_REF_NAME" --generate-notes
