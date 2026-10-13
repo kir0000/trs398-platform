@@ -241,3 +241,46 @@ def test_a_common_cause_is_visible_to_the_comparison(conn):
         versa.setdefault((r["modality"], float(r["nominal_energy"]), r["fff"]), []).append(spc.Point(r["measured_on"], float(r["deviation_pct"])))
     vm, vmat = compare.align({str(k): v for k, v in versa.items()})
     assert "2026-03" not in {c.month for c in compare.common_mode(vm, vmat) if c.flagged}
+
+
+def deviations_by_beam(conn):
+    out = {}
+    for r in conn.execute("""SELECT l.name AS linac, b.modality, b.nominal_energy AS e, b.fff, s.measured_on, r.deviation_pct AS d
+                             FROM measurement_sessions s JOIN results r ON r.session_id = s.id JOIN beams b ON b.id = s.beam_id
+                             JOIN linacs l ON l.id = b.linac_id ORDER BY s.measured_on""").fetchall():
+        out.setdefault((r["linac"], r["modality"], r["e"], bool(r["fff"])), []).append(float(r["d"]))
+    return out
+
+
+def corr(a, b):
+    n = len(a)
+    ma, mb = sum(a) / n, sum(b) / n
+    cov = sum((x - ma) * (y - mb) for x, y in zip(a, b))
+    return cov / (sum((x - ma) ** 2 for x in a) * sum((y - mb) ** 2 for y in b)) ** 0.5
+
+
+def test_three_years_with_dependencies_between_the_energies(conn):
+    s = seed_demo.seed(conn, 36, END, linked=True)
+    beams = 14                                                                   # two linacs, 15 beams, one has real history
+    assert s["sessions"] == beams * 36
+    dates = one(conn, "SELECT min(measured_on) AS a_on, max(measured_on) AS b_on FROM measurement_sessions")
+    assert (dates["a_on"], dates["b_on"]) == (dt.date(2023, 10, 15), dt.date(2026, 9, 15))
+    # every record has a calibration that was valid on its day (the series starts before the first calibration of the set)
+    assert one(conn, """SELECT count(*) AS n FROM measurement_sessions s JOIN calibrations c ON c.id = s.calibration_id
+                        WHERE c.calibrated_on > s.measured_on OR c.valid_until < s.measured_on""")["n"] == 0
+    dev = deviations_by_beam(conn)
+    assert all(len(v) == 36 for v in dev.values())
+    # the energies of one linac move together, the linacs do not move with each other
+    tb = [dev[("TrueBeam", "electron", e, False)] for e in (6, 9, 12, 15)]
+    same = [corr(a, b) for i, a in enumerate(tb) for b in tb[i + 1:]]
+    other = [corr(a, dev[("Versa HD", "electron", 9, False)]) for a in tb]
+    assert sum(same) / len(same) > sum(other) / len(other) + 0.15
+    # group events: TrueBeam photons together in months 9-11, all electrons of Versa HD from 9 MeV in months 18-19, 6 MeV not
+    photons = [v for k, v in dev.items() if k[:2] == ("TrueBeam", "photon")]
+    base = sum(sum(v[3:7]) / 4 for v in photons) / len(photons)
+    event = sum(sum(v[8:10]) / 2 for v in photons) / len(photons)
+    assert event - base > 0.3
+    v9, v6 = dev[("Versa HD", "electron", 9, False)], dev[("Versa HD", "electron", 6, False)]
+    shift9 = sum(v9[17:19]) / 2 - sum(v9[12:16]) / 4
+    shift6 = sum(v6[17:19]) / 2 - sum(v6[12:16]) / 4
+    assert shift9 > 0.3 and shift9 > shift6 + 0.2
