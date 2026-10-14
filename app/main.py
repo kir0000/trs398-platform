@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import applog, backups, netaccess, services
+from app import applog, backups, health, netaccess, services
 from app.db import audit, connect, data_dir, migrate, request_ip, session_secret, system_event
 from app.db import has_data as db_has_data
 from app.db import pending as db_pending
@@ -58,6 +58,7 @@ async def lifespan(_app):
         if todo:
             system_event("migration_applied", "system", None, {"names": todo})
         services.seed_chambers(conn)
+        health.check()
         login, password = os.environ.get("BOOTSTRAP_ADMIN_LOGIN"), os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
         if login and password and not has_users(conn):
             if len(password) < MIN_PASSWORD_LENGTH:

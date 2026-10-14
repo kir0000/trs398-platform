@@ -75,9 +75,14 @@ def main():
             keep.mkdir(exist_ok=True)
             try:
                 backups.make(folder=keep)
-            except Exception as e:
-                raise SystemExit(f"cannot save the current database, nothing was changed: {e}")
-            print(f"the current database is saved in {keep}")
+                print(f"the current database is saved in {keep}")
+            except Exception as e:                                # a damaged file cannot be copied by SQLite: keep the bytes as they are
+                aside = keep / f"trs398_damaged_{datetime.now():%Y-%m-%d_%H%M%S}.db"
+                try:
+                    shutil.copyfile(target, aside)
+                except OSError as e2:
+                    raise SystemExit(f"cannot save the current database, nothing was changed: {e} / {e2}")
+                print(f"the current database could not be copied normally ({e}); the file is kept as it is: {aside}")
         for suffix in ("-wal", "-shm"):
             Path(str(target) + suffix).unlink(missing_ok=True)
         try:
