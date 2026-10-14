@@ -118,3 +118,10 @@ def test_text_typed_by_people_is_left_as_written_in_a_translate_no_element():
     assert "Reason:" in out and "entered by" in out.split("</span>")[-1]                     # the rest of the page is translated
     assert i18n.leftovers(out) == [t for t in i18n.leftovers(out) if "введено" not in t or "entered by" in t]
     assert i18n.translate_html(html, "ru", False) == html
+
+
+def test_the_extractor_reads_every_python_package_with_interface_texts():
+    """A new package of the web side (app/routes) must not drop out of the translation check silently."""
+    source = (ROOT / "tools" / "i18n_extract.py").read_text(encoding="utf-8")
+    for package in sorted(p.name for p in (ROOT / "app").iterdir() if p.is_dir() and (p / "__init__.py").exists()):
+        assert f"app/{package}/*.py" in source, f"tools/i18n_extract.py does not read app/{package}"

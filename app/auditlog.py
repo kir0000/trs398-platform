@@ -202,7 +202,7 @@ def details_lines(details) -> list[tuple[str, str, bool]]:
 
 def describe(conn, rows) -> dict:
     """{(entity, entity_id): (text, url or None)} for the objects the records point to."""
-    from app.main import beam_label                                  # the same name of a beam as everywhere in the program
+    from app.common import beam_label                                # the same name of a beam as everywhere in the program
 
     def beam(bid):
         b = conn.execute("""SELECT b.*, l.name AS linac FROM beams b JOIN linacs l ON l.id = b.linac_id WHERE b.id = %s""", (bid,)).fetchone()

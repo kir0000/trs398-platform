@@ -147,7 +147,7 @@ def collect() -> set[str]:
         found |= from_template(Path(f))
     for f in glob.glob(str(ROOT / "core" / "data" / "*.json")):
         found |= from_data(Path(f))
-    for pattern in ("app/*.py", "core/*.py"):
+    for pattern in ("app/*.py", "app/routes/*.py", "core/*.py"):
         for f in glob.glob(str(ROOT / pattern)):
             if Path(f).name == "notation.py":
                 continue

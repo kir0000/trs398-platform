@@ -201,7 +201,7 @@ The schema is in `db/init/001_schema.sql` (migrations 002–008 next to it).
   city), for the beam (dose rate, field size or applicator, phantom, window, cpl, hpl, zmax), for the calibration (ND,w, Q0 and R50,w, depth,
   P0, T0, humidity, V1, polarity at calibration and “with correction”, polarity at the user, laboratory, dates, the electrometer
   with a serial number and a range, the box “calibrated separately” with kelec, the laboratory and the date).
-- The calculation takes these values only from the equipment (`app/main.py: equipment_values`), what the browser sent is replaced; a snapshot
+- The calculation takes these values only from the equipment (`app/routes/measurements.py: equipment_values`), what the browser sent is replaced; a snapshot
   of the values is stored in the record (`extra.form`), so later edits of the equipment do not change old protocols.
 - **kelec**: the value from the certificate (for example VNIIFTRI) is used only with the box “calibrated separately from the chamber”,
   otherwise kelec = 1 (TRS-398 Rev.1, note c).
