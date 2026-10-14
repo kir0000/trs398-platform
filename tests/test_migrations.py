@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RELEASED = {                                           # name -> sha256 of the text with LF line ends (released in 2.0.0 and later)
     "001_baseline.sql": "210f7cef1590e18faa4508592835e5e9927e9fcebd505b4db4724241d3824cc7",
     "002_audit_ip.sql": "ca7d2fc9f104ffd5423ba408a58dfec7debd1c59b7aad95c76c93a586fd63e87",                       # released in 2.2.0
+    "003_audit_prune.sql": "708e0f12c061c0e00c88f84ee36d9e2d3fd7d6916fddb74b003a53c90fb782df",                       # released in 2.5.0
 }
 
 
