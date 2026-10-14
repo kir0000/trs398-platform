@@ -18,6 +18,9 @@
 {% if not summaries %}
 <div class="card muted">Для выбранного аппарата и периода нет утверждённых данных.</div>
 {% else %}
+<p class="row" style="gap:8px;margin:0 0 10px"><a class="btn" href="/compare/export?linac_id={{ linac.id }}&modality={{ modality }}&months={{ months }}&fmt=xlsx">Скачать Excel</a>
+  <a class="btn" href="/compare/export?linac_id={{ linac.id }}&modality={{ modality }}&months={{ months }}&fmt=csv">Скачать CSV</a>
+  <span class="muted" style="font-size:13px">состояние каждой энергии, средние по месяцам, корреляции, подсказки</span></p>
 <div class="card"><h2>Состояние каждой энергии</h2>
   <table class="sortable" data-filters><tr><th>Тип</th><th>Пучок</th><th>Записей</th><th>Последняя</th><th>Откл., %</th><th>Среднее, %</th><th>σ, %</th><th>Тренд, %/мес</th><th>Статус</th><th>За 3σ</th><th>Другие правила</th><th>CUSUM</th><th>Вне допуска</th><th>Последний сигнал</th></tr>
   {% for r in summaries %}<tr>
