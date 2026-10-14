@@ -2,6 +2,7 @@
 import hmac
 import os
 import secrets
+import time
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
@@ -9,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup as _Markup
 
-from app import fields, i18n
+from app import fields, i18n, settings
 from app.db import get_db
 from app.notation import sym, sym_plain
 from app.security import ROLE_LABELS, LoginThrottle, can_create, can_review
@@ -51,13 +52,41 @@ STATUS_LABELS = {"draft": "черновик", "submitted": "на проверк�
 
 
 class NotAuthenticated(Exception):
-    pass
+    def __init__(self, reason: str = ""):
+        super().__init__(reason)
+        self.reason = reason                                       # "idle" or "age": the sign-in page tells why the session ended
+
+
+clock = time.time                                                  # replaced by the tests
+TOUCH_EVERY = 30                                                   # seconds: the "last activity" is written to the cookie no more often
+
+
+def check_session_lifetime(session: dict, now: float, hours: int, idle_minutes: int) -> str:
+    """"" while the session is alive, else why it is over: "age" (longer than `hours` since the sign-in) or "idle" (no activity for
+    `idle_minutes`; 0 switches it off). Sessions made before this check existed carry no times and start counting now."""
+    started = session.get("login_at")
+    last = session.get("last")
+    if started is None or last is None:
+        session["login_at"] = session["last"] = now
+        return ""
+    if now - started > hours * 3600:
+        return "age"
+    if idle_minutes and now - last > idle_minutes * 60:
+        return "idle"
+    if now - last >= TOUCH_EVERY:
+        session["last"] = now
+    return ""
 
 
 def current_user(request: Request, conn=Depends(get_db)):
     uid = request.session.get("uid")
     if not uid:
         raise NotAuthenticated()
+    cfg = settings.load()
+    why = check_session_lifetime(request.session, clock(), int(cfg["session_hours"]), int(cfg["session_idle_minutes"]))
+    if why:
+        request.session.clear()
+        raise NotAuthenticated(why)
     u = conn.execute("SELECT id, login, full_name, role, is_active, password_hash FROM users WHERE id = %s",
                      (uid,)).fetchone()
     if not u or not u["is_active"]:

@@ -1,6 +1,7 @@
 """The settings kept in <data>/settings.json (the page "Settings" of the administrator edits them):
-port, access from the network, language by default, the hour and the keeping period of the backups, the folder of the second copy.
-An environment variable of the same meaning (TRS_LANG, BACKUP_HOUR, BACKUP_KEEP_DAYS, BACKUP_COPY_DIR) overrides the file."""
+port, access from the network, the allowed addresses, the lifetime of a session, language by default, the hour and the keeping period
+of the backups, the folder of the second copy.
+An environment variable of the same meaning (TRS_LANG, BACKUP_HOUR, BACKUP_KEEP_DAYS, BACKUP_COPY_DIR, TRS_ALLOWED_NETWORKS) overrides the file."""
 from __future__ import annotations
 
 import json
@@ -9,8 +10,10 @@ from pathlib import Path
 
 from app import db
 
-DEFAULTS = {"port": 8000, "lan": False, "language": "ru", "backup_hour": 2, "backup_keep_days": 30, "backup_copy_dir": ""}
+DEFAULTS = {"port": 8000, "lan": False, "language": "ru", "backup_hour": 2, "backup_keep_days": 30, "backup_copy_dir": "",
+            "allowed_networks": "", "session_hours": 8, "session_idle_minutes": 0}
 LIMITS = {"port": (1024, 65535), "backup_hour": (0, 23), "backup_keep_days": (1, 3650)}
+OPTIONAL_LIMITS = {"session_hours": (1, 72), "session_idle_minutes": (0, 1440)}            # checked only when the form has them
 
 
 def path() -> Path:
@@ -43,6 +46,26 @@ def validate(form: dict) -> tuple[dict, list[str]]:
             errors.append(f"{names[key]}: от {low} до {high}.")
             continue
         out[key] = value
+    session_names = {"session_hours": "Сеанс не дольше, часов", "session_idle_minutes": "Простой до завершения сеанса, минут"}
+    for key, (low, high) in OPTIONAL_LIMITS.items():
+        if key not in form:
+            continue
+        try:
+            value = int(str(form.get(key, "")).strip())
+        except ValueError:
+            errors.append(f"{session_names[key]}: нужно целое число.")
+            continue
+        if not low <= value <= high:
+            errors.append(f"{session_names[key]}: от {low} до {high}.")
+            continue
+        out[key] = value
+    if "allowed_networks" in form:
+        from app import netaccess
+        networks, bad = netaccess.parse(str(form.get("allowed_networks", "")))
+        if bad:
+            errors.append("Разрешённые адреса: не адрес или сеть: " + ", ".join(bad[:5]) + ". Примеры: 192.168.1.0/24, 10.0.0.15.")
+        else:
+            out["allowed_networks"] = ", ".join(str(n.network_address) if n.prefixlen == n.max_prefixlen else str(n) for n in networks)
     out["lan"] = str(form.get("lan", "")).lower() in ("1", "on", "true", "yes")
     language = str(form.get("language", "ru")).strip().lower()
     if language not in ("ru", "en"):

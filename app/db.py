@@ -185,7 +185,7 @@ def system_event(action, entity="system", entity_id=None, details=None) -> None:
     try:
         with connect() as conn:
             if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'audit_log'").fetchone():
-                conn.execute("INSERT INTO audit_log(user_id, action, entity, entity_id, details) VALUES (NULL, %s, %s, %s, %s)",
-                             (action, entity, None if entity_id is None else str(entity_id), Jsonb(details or {})))
+                conn.execute("INSERT INTO audit_log(user_id, action, entity, entity_id, details, ip) VALUES (NULL, %s, %s, %s, %s, %s)",
+                             (action, entity, None if entity_id is None else str(entity_id), Jsonb(details or {}), request_ip.get()))
     except Exception:                                            # noqa: BLE001  (a log entry must never stop the program)
         pass
