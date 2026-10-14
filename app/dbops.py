@@ -5,7 +5,11 @@ They raise MaintenanceError with a message; the guard triggers of the schema sta
 """
 from __future__ import annotations
 
-from app.db import Jsonb
+import hashlib
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from app.db import Jsonb, audit
 
 
 class MaintenanceError(Exception):
@@ -91,3 +95,51 @@ def admin_purge(conn, scope: str, actor: int, reason: str) -> dict:
     conn.execute("INSERT INTO audit_log(user_id, action, entity, details) VALUES (%s, 'purge', %s, %s)",
                  (actor, scope, Jsonb({"reason": reason, **out})))
     return out
+
+
+def prune_audit(conn, actor: int, keep_days: int, reason: str, archive_dir: Path, safety_dir: Path) -> dict:
+    """The controlled clearing of the audit log (admin only, a reason is required).
+
+    Before anything is deleted the whole log is written to a CSV archive and the database is copied to `safety_dir` (the clearing can be
+    undone by restoring that copy). Records older than `keep_days` days go (0: all of them); the records about earlier clearings are never
+    deleted; the clearing itself is written to the log with the name and the checksum of the archive."""
+    from app import auditlog, backups                                  # here: these modules import dbops' neighbours
+    if reason is None or len(reason.strip()) < 5:
+        raise MaintenanceError("a reason of at least 5 characters is required")
+    if not conn.execute("SELECT 1 FROM users WHERE id = %s AND role = 'admin' AND is_active", (actor,)).fetchone():
+        raise MaintenanceError("only an active admin may clear the audit log")
+    if keep_days < 0:
+        raise MaintenanceError("the number of days to keep cannot be negative")
+    rows, total = auditlog.search(conn, auditlog.parse_filters({}), limit=None)
+    if not total:
+        raise MaintenanceError("the audit log is empty")
+    cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=keep_days)).isoformat(sep=" ", timespec="seconds")
+    where = "action <> 'audit_pruned'" + (" AND at < %s" if keep_days else "")
+    args = (cutoff,) if keep_days else ()
+    doomed = conn.execute(f"SELECT min(at) AS first, max(at) AS last, count(*) AS n FROM audit_log WHERE {where}", args).fetchone()
+    if not doomed["n"]:
+        raise MaintenanceError("there are no records older than that")
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive = archive_dir / f"audit_{datetime.now():%Y-%m-%d_%H%M%S}.csv"
+    data = auditlog.to_csv(conn, rows)
+    archive.write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    safety_dir.mkdir(parents=True, exist_ok=True)
+    safety = backups.make(folder=safety_dir, name_prefix="trs398_before_audit_clear")
+    _flag_audit(conn, True)
+    try:
+        deleted = conn.execute(f"DELETE FROM audit_log WHERE {where}", args).rowcount
+    finally:
+        _flag_audit(conn, False)
+    kept = conn.execute("SELECT count(*) AS n FROM audit_log").fetchone()["n"]
+    out = {"deleted": deleted, "kept": kept + 1, "keep_days": keep_days, "reason": reason.strip(), "archive": archive.name, "sha256": digest,
+           "safety_copy": safety.name, "first": str(doomed["first"])[:10], "last": str(doomed["last"])[:10]}
+    audit(conn, actor, "audit_pruned", "audit", None, out)
+    return {**out, "archive_path": str(archive)}
+
+
+def _flag_audit(conn, on: bool) -> None:
+    if on:
+        conn.execute("INSERT OR IGNORE INTO _maintenance(k) VALUES ('audit_prune')")
+    else:
+        conn.execute("DELETE FROM _maintenance WHERE k = 'audit_prune'")

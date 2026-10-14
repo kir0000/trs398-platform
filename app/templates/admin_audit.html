@@ -10,7 +10,7 @@
   <label>Раздел<br><select name="group"><option value="">Все</option>{% for g in groups %}<option value="{{ g }}" {{ 'selected' if f.group == g }}>{{ g }}</option>{% endfor %}</select></label>
   <label>Действие<br><select name="action"><option value="">Все</option>{% for code, (name, grp) in actions %}<option value="{{ code }}" {{ 'selected' if f.action == code }}>{{ name }}</option>{% endfor %}</select></label>
   <label>Поиск<br><input name="q" value="{{ f.q }}" placeholder="протокол, адрес, текст" size="22"></label>
-  <span><button class="primary">Показать</button> <a class="btn" href="/admin/audit">Сбросить</a> <a class="btn" href="/admin/audit.csv{{ '?' ~ query if query }}">Скачать CSV</a></span>
+  <span><button class="primary">Показать</button> <a class="btn" href="/admin/audit">Сбросить</a> <a class="btn" href="/admin/audit.csv{{ '?' ~ query if query }}">Скачать CSV</a> <a class="btn" href="/admin/audit/clear">Очистить журнал…</a></span>
 </form>
 <div class="card"><table class="sortable">
   <tr><th>Время</th><th>Пользователь</th><th>Адрес</th><th>Действие</th><th>Объект</th><th>Подробности</th></tr>

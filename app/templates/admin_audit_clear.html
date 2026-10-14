@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Очистка журнала аудита{% endblock %}
+{% block content %}
+<h1>Очистка журнала аудита</h1>
+{% if result %}<div class="card ok"><b>Готово.</b> Удалено записей: {{ result.deleted }}, осталось: {{ result.kept }}. Весь журнал до очистки сохранён в файл <code translate="no">{{ result.archive_path }}</code>
+  (контрольная сумма SHA-256 записана в журнал), страховая копия всей базы лежит в папке <code>backups/keep</code> ({{ result.safety_copy }}). Сама очистка записана в журнал.</div>{% endif %}
+{% if error %}<div class="card err">{{ error }}</div>{% endif %}
+<div class="card"><h2>Как это работает</h2>
+  <p>Журнал аудита нельзя изменить или удалить обычными действиями. Эта страница делает исключение, при котором ничего не теряется незаметно:</p>
+  <ol style="margin:0;padding-left:20px;line-height:1.6">
+    <li>весь журнал сначала записывается в файл CSV (его читает Excel) в папке <code translate="no">{{ archive_dir }}</code>;</li>
+    <li>делается страховая копия всей базы (<code>backups/keep</code>): очистку можно отменить через «Восстановить из копии»;</li>
+    <li>удаляются выбранные записи; записи о прошлых очистках не удаляются никогда;</li>
+    <li>в журнале остаётся запись «Журнал аудита очищен»: кто, когда, причина, сколько удалено, имя и контрольная сумма файла.</li>
+  </ol></div>
+<div class="card"><h2>Сейчас в журнале</h2>
+  <p>Записей: <b>{{ total }}</b>{% if first %}, с {{ first.strftime('%d.%m.%Y') }} по {{ last.strftime('%d.%m.%Y') }}{% endif %}.</p>
+  <p class="muted" style="margin:0">Перед очисткой сделайте резервную копию (последняя: {% if backup.found %}{{ backup.when.strftime('%d.%m.%Y %H:%M') }}{% else %}нет{% endif %}); страховая копия делается и автоматически.</p></div>
+<div class="card"><h2>Что удалить</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <label style="color:var(--text);font-size:15px"><input type="radio" name="mode" value="older" checked> Удалить записи старше <input name="days" type="number" min="1" max="3650" value="{{ days }}" style="width:80px"> дней (более свежие остаются)</label>
+  <label style="color:var(--text);font-size:15px"><input type="radio" name="mode" value="all"> Удалить все записи (кроме записей о прошлых очистках)</label>
+  <label>Причина (попадёт в журнал аудита)</label><input name="reason" required minlength="5" style="width:100%">
+  <label>Ваш пароль</label><input name="password" type="password" autocomplete="current-password" required>
+  <label>Для подтверждения введите слово {{ word }}</label><input name="confirmation" autocomplete="off" required>
+  <p><button class="danger">Очистить журнал</button> <a class="btn" href="/admin/audit">К журналу</a></p>
+</form></div>
+{% endblock %}

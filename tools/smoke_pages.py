@@ -11,7 +11,7 @@ tok = re.search(r'name="csrf" value="([^"]+)"', c.get("/login").text).group(1)
 r = c.post("/login", data={"login": login, "password": password, "csrf": tok})
 assert "/login" not in str(r.url), "sign-in failed"
 pages = ["/", "/measurements", "/measurements/new?modality=photon", "/measurements/new?modality=electron", "/trends",
-         "/compare", "/uncertainty", "/equipment", "/help", "/admin/users", "/admin/backups", "/admin/purge", "/admin/audit", "/about", "/healthz"]
+         "/compare", "/uncertainty", "/equipment", "/help", "/admin/users", "/admin/backups", "/admin/purge", "/admin/audit", "/admin/audit/clear", "/about", "/healthz"]
 ids = re.findall(r'href="/measurements/(\d+)"', c.get("/measurements").text)
 for sid in ids[:3] + ids[-2:]:
     pages += [f"/measurements/{sid}", f"/measurements/{sid}/print", f"/measurements/{sid}/pdf"]

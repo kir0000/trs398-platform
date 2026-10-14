@@ -174,6 +174,52 @@ async def purge(request: Request, user=Depends(require("admin")), conn=Depends(g
                   scopes=PURGE_SCOPES, confirmation=PURGE_CONFIRMATION, result=result, error=error)
 
 
+AUDIT_CLEAR_WORDS = ("ОЧИСТИТЬ", "CLEAR")                      # the word the page shows depends on the language; either is accepted
+
+
+def audit_clear_context(conn, **extra):
+    row = conn.execute("SELECT count(*) AS n, min(at) AS first_at, max(at) AS last_at FROM audit_log").fetchone()
+    return dict(total=row["n"], first=row["first_at"], last=row["last_at"], backup=backups.latest(), word=AUDIT_CLEAR_WORDS[0],
+                archive_dir=str(backups.backup_dir() / "audit_archive"), result=None, error=None, **extra)
+
+
+@router.get("/admin/audit/clear", response_class=HTMLResponse)
+def audit_clear_page(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+    return render(request, "admin_audit_clear.html", user, **audit_clear_context(conn, days="90"))
+
+
+@router.post("/admin/audit/clear", response_class=HTMLResponse)
+async def audit_clear(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+    """The controlled clearing of the audit log: a reason, the password and a word; the archive and a safety copy are made first."""
+    form = await request.form()
+    check_csrf(request, form)
+    mode, reason = form.get("mode"), (form.get("reason") or "").strip()
+    days_text = (form.get("days") or "").strip()
+    error = None
+    days = 0
+    if mode not in ("older", "all"):
+        error = "Выберите, что удалить"
+    elif mode == "older" and not (days_text.isdigit() and 1 <= int(days_text) <= 3650):
+        error = "Сколько дней оставить: целое число от 1 до 3650"
+    elif (form.get("confirmation") or "").strip().upper() not in AUDIT_CLEAR_WORDS:
+        error = f"Для подтверждения введите слово {AUDIT_CLEAR_WORDS[0]} заглавными буквами"
+    elif len(reason) < 5:
+        error = "Укажите причину очистки (не короче 5 символов)"
+    elif not verify_password(user["password_hash"], form.get("password") or ""):
+        audit(conn, user["id"], "audit_prune_denied", "audit", None, {"why": "wrong password"})
+        error = "Неверный пароль"
+    result = None
+    if not error:
+        days = int(days_text) if mode == "older" else 0
+        try:
+            result = dbops.prune_audit(conn, user["id"], days, reason, backups.backup_dir() / "audit_archive", backups.backup_dir() / "keep")
+        except dbops.MaintenanceError as e:
+            error = {"there are no records older than that": "Записей старше этого срока нет, удалять нечего",
+                     "the audit log is empty": "Журнал пуст"}.get(str(e), str(e))
+    return render(request, "admin_audit_clear.html", user, status_code=422 if error else 200,
+                  **{**audit_clear_context(conn, days=days_text or "90"), "result": result, "error": error})
+
+
 def audit_filters_context(conn, request: Request):
     f = auditlog.parse_filters(request.query_params)
     users = conn.execute("SELECT id, login FROM users ORDER BY login").fetchall()

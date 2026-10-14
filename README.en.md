@@ -74,7 +74,7 @@ Version 1.x stays available in the branch `v1.x` of the repository.
 ## Clearing the database
 
 Administrator: menu "Clearing the database". It needs a scope, a reason, the password and the word `DELETE` (in the Russian interface `УДАЛИТЬ`). Measurements/results and/or historical journals are deleted.
-Users, equipment, reference data and the audit log stay; the clearing itself is written to the audit log. Ordinary requests of the program cannot delete history (the database triggers protect it);
+Users, equipment, reference data and the audit log stay; the clearing itself is written to the audit log. The audit log is cleared separately and only in a controlled way: “Audit” → “Clear the log…” (a reason, the password and the word CLEAR; before the deletion the whole log is saved as CSV in `backups/audit_archive`, a safety copy of the database is made in `backups/keep`, the records of earlier clearings are never deleted, the clearing itself stays in the log). Ordinary requests of the program cannot delete history (the database triggers protect it);
 it is possible only through the maintenance operations in `app/dbops.py` for an active administrator. Make a backup before clearing.
 
 ## Demo data
