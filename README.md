@@ -111,7 +111,7 @@ python tools/build_windows.py [--installer]   # сборка: нужны pystray
 ## Структура
 
 - `core/`: расчёт (фотоны, электроны, SPC), справочные таблицы в `core/data/`
-- `app/`: веб-приложение (FastAPI, Jinja2, HTMX), `app/db.py` и `app/migrations/` (SQLite), `app/protocol.py` собирает данные протокола
+- `app/`: веб-приложение (FastAPI, Jinja2, HTMX); `app/main.py` создаёт приложение и подключает части из `app/routes/` (страницы входа, измерения, тренды, неопределённость, оборудование, администрирование), общее в `app/web.py` и `app/common.py`; `app/db.py` и `app/migrations/` (SQLite), `app/protocol.py` собирает данные протокола
 - `tray.py`, `run.py`, `trs398.spec`, `installer/`: запуск, значок в трее, сборка
 - `importers/`: перенос таблиц и журналов из xlsm (только чтение)
 - `docs/DESIGN.md`: разбор исходных таблиц, формулы, модель данных (English: `docs/DESIGN.en.md`)

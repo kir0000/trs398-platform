@@ -108,7 +108,7 @@ The automatic checks (`tests/test_i18n.py`, `tests/test_i18n_lint.py`: phrase bo
 ## Structure
 
 - `core/`: calculation (photons, electrons, SPC), reference tables in `core/data/`
-- `app/`: the web application (FastAPI, Jinja2, HTMX), `app/db.py` and `app/migrations/` (SQLite), `app/protocol.py` assembles the protocol data
+- `app/`: the web application (FastAPI, Jinja2, HTMX); `app/main.py` creates the application and includes the parts of `app/routes/` (sign-in pages, measurements, trends, uncertainty, equipment, administration), the common parts are in `app/web.py` and `app/common.py`; `app/db.py` and `app/migrations/` (SQLite), `app/protocol.py` assembles the protocol data
 - `tray.py`, `run.py`, `trs398.spec`, `installer/`: start, tray icon, build
 - `importers/`: moving tables and journals from xlsm (read only)
 - `docs/DESIGN.en.md`: analysis of the source worksheets, formulas, data model (Russian: `docs/DESIGN.md`)
