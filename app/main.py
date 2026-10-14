@@ -22,7 +22,7 @@ from app.notation import sym, sym_plain
 from app.chart import control_chart
 from core import uncertainty_distributions as udist
 from core import uncertainty_literature as ulit
-from app import applog, auditlog, dbops, settings as app_settings, updates
+from app import applog, auditlog, dbops, trend_export, settings as app_settings, updates
 from app.pdf import PdfUnavailable, html_to_pdf
 from app.db import audit, connect, data_dir, db_path, get_db, migrate, request_ip, session_secret, system_event
 from app.db import has_data as db_has_data, pending as db_pending
@@ -1021,6 +1021,41 @@ def trends(request: Request, beam_id: str = "", cond: str = "", user=Depends(cur
                    series=[dict(key=k["ref_key"], label=key_label(k["ref_key"]), n=k["n"], last=k["last_on"]) for k in keys], series_key=key,
                    signals=[p for p in summary.points if p.signal or p.cusum_signal][-15:])
     return render(request, "trends.html", user, **ctx)
+
+
+@app.get("/trends/export")
+def trends_export(request: Request, beam_id: str, cond: str = "", fmt: str = "xlsx", user=Depends(current_user), conn=Depends(get_db)):
+    """The series of one beam as a CSV or an Excel file: the points with the limits and the signals, the summary, the baseline periods."""
+    if fmt not in ("csv", "xlsx"):
+        raise HTTPException(422, "Формат: csv или xlsx")
+    beam = conn.execute("SELECT b.*, l.name AS linac FROM beams b JOIN linacs l ON l.id = b.linac_id WHERE b.id = %s",
+                        (int_or_404(beam_id, "Пучок"),)).fetchone()
+    if not beam:
+        raise HTTPException(404, "Пучок не найден")
+    keys = trend_keys(conn, beam)
+    key = cond if cond in [k["ref_key"] for k in keys] else (keys[0]["ref_key"] if keys else None)
+    periods, _rows = beam_periods(conn, beam["id"])
+    summary = spc.analyse(trend_points(conn, beam, key), periods=periods)
+    if summary.n == 0:
+        raise HTTPException(404, "Для этого пучка нет данных для выгрузки")
+    records = conn.execute("""SELECT t.source, t.record_id, t.dw_zmax, s.protocol_no FROM v_trend t
+        LEFT JOIN measurement_sessions s ON t.source = 'measured' AND s.id = t.record_id
+        WHERE t.linac = %s AND t.modality = %s AND t.nominal_energy = %s AND t.fff = %s AND t.ref_key IS NOT DISTINCT FROM %s
+        ORDER BY t.measured_on, t.source, t.record_id""", (beam["linac"], beam["modality"], beam["nominal_energy"], beam["fff"], key)).fetchall()
+    lang = current_lang(request)
+    name = f"{beam['linac']}, {beam_label(beam)}"
+    points = [trend_export.POINT_HEAD] + trend_export.point_rows(summary, records)
+    if fmt == "csv":
+        body, media, ext = trend_export.to_csv(points, lang), "text/csv; charset=utf-8", "csv"
+    else:
+        sheets = [("Данные", points), ("Сводка", trend_export.summary_rows(name, key_label(key), summary, user["full_name"], date.today())),
+                  ("Базовые периоды", trend_export.period_rows(summary))]
+        body = trend_export.to_xlsx(sheets, lang)
+        media, ext = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+    audit(conn, user["id"], "trends_export", "beams", beam["id"], {"format": ext, "rows": summary.n, "series": key_label(key)})
+    from urllib.parse import quote
+    pretty = quote(f"trend {name}.{ext}".replace(",", ""))
+    return Response(body, media_type=media, headers={"Content-Disposition": f"attachment; filename=\"trend.{ext}\"; filename*=UTF-8''{pretty}"})
 
 
 COMPARE_MODALITIES = {"all": "фотоны и электроны", "photon": "только фотоны", "electron": "только электроны"}
