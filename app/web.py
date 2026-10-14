@@ -127,7 +127,7 @@ def render(request: Request, name: str, user=None, status_code=200, **ctx):
     lang = current_lang(request)
     ctx.update(user=user, csrf=csrf_token(request), role_labels=ROLE_LABELS, status_labels=STATUS_LABELS,
                can_create=bool(user) and can_create(user["role"]), can_review=bool(user) and can_review(user["role"]),
-               lang=lang, other_lang="en" if lang == "ru" else "ru", app_version=app_version(), db_problem=health.problem())
+               lang=lang, other_lang="en" if lang == "ru" else "ru", app_version=app_version(), db_problem=health.problem(), sync_warning=health.status()["sync"])
     response = templates.TemplateResponse(request, name, ctx, status_code=status_code)
     return HTMLResponse(i18n.translate_html(response.body.decode("utf-8"), lang), status_code=status_code)
 

@@ -105,6 +105,7 @@ input.unusual{border-color:var(--warn)}
 {% else %}
 <div style="text-align:right;padding:10px 32px"><a href="/lang/{{ other_lang }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else ''))|urlencode }}" title="Language / Язык" style="font-weight:600">{{ other_lang|upper }}</a></div>
 {% endif %}
+{% if sync_warning %}<div class="card warn" style="max-width:1100px;margin:12px auto"><b>Папка с данными синхронизируется: {{ sync_warning }}.</b> Облачная синхронизация может испортить файл базы (копирует его на середине записи и путает версии разных компьютеров). Переместите папку данных в обычную папку (например, <code>%LOCALAPPDATA%\TRS398\data</code>), а в облаке оставьте только резервные копии.</div>{% endif %}
 {% if db_problem %}<div class="card err" style="max-width:1100px;margin:12px auto"><b>Файл базы данных повреждён</b> ({{ db_problem }}). Не вносите данные. Закройте программу и восстановите последнюю исправную копию: значок в трее → «Восстановить из копии…» (или «Копии» на странице администратора).</div>{% endif %}
 <main>{% block content %}{% endblock %}</main>
 <div class="muted" style="font-size:12px;text-align:center;margin:26px 0 14px">TRS-398 Rev.1 · <a href="/about" style="color:inherit">версия {{ app_version }}</a></div>
