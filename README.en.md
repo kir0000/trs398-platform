@@ -58,7 +58,7 @@ Version 1.x stays available in the branch `v1.x` of the repository.
 - Tables are sorted by clicking a header, the top bar and the table headers are pinned.
 - The parameters of sections 1–3 of the worksheet (linac, beam, chamber, calibration, polarities, electrometer) are set in “Equipment”; on the calculation sheet they are only displayed. The readings (iii) and (iv) are filled in from the first record of the beam and can be changed.
 - Trends: control limits ±2σ/±3σ, signal rules, CUSUM, a forecast of exceeding ±2 %, a fixed baseline period.
-- **Exporting a trend** to Excel (three sheets) and CSV: the points with limits and signals, the summary, the baseline periods.
+- **Exporting a trend** to Excel (three sheets) and CSV: the points with limits and signals, the summary, the baseline periods. The **energy comparison** of a linac is exported the same way (five Excel sheets or a CSV).
 - The administrator: users, equipment, the audit log, backups, clearing the database.
 - Two languages (Russian, English) for the interface, the protocol/PDF, the help and the start scripts.
 

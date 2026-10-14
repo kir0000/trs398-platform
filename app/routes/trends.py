@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from app import compare_export as compare_export_module
 from app import trend_export
 from app.chart import control_chart
 from app.common import beam_label, beam_periods, key_label, trend_keys, trend_points
@@ -93,23 +94,8 @@ COMPARE_MODALITIES = {"all": "фотоны и электроны", "photon": "т
 COMPARE_PERIODS = {"": "весь период", "24": "последние 24 мес", "12": "последние 12 мес", "6": "последние 6 мес"}
 
 
-@router.get("/compare", response_class=HTMLResponse)
-def compare_page(request: Request, linac_id: str = "", modality: str = "all", months: str = "",
-                 user=Depends(current_user), conn=Depends(get_db)):
-    """Trends of several energies of one linac side by side, with a search for a common cause."""
-    if modality not in COMPARE_MODALITIES or months not in COMPARE_PERIODS:
-        raise HTTPException(422, "Неверные параметры сравнения")
-    linacs = conn.execute("""SELECT l.id, l.name, (SELECT count(DISTINCT t.modality || '|' || t.nominal_energy || '|' || t.fff) FROM v_trend t
-                             WHERE t.linac = l.name) AS n_beams FROM linacs l ORDER BY l.name""").fetchall()
-    ctx = dict(linacs=linacs, linac=None, modality=modality, months=months, modalities=COMPARE_MODALITIES,
-               periods=COMPARE_PERIODS, summaries=[], hints=[], flagged=[], corr_labels=[], plot={},
-               min_beams=compare.MIN_BEAMS, shift=str(compare.SHIFT_PCT).replace(".", ","))
-    if not linacs:
-        return render(request, "compare.html", user, **ctx)
-    linac = next((l for l in linacs if str(l["id"]) == linac_id), None) if linac_id else max(linacs, key=lambda l: l["n_beams"])
-    if linac is None:
-        raise HTTPException(404, "Аппарат не найден")
-    ctx["linac"] = linac
+def compare_data(conn, linac: dict, modality: str, months: str) -> dict | None:
+    """Everything the comparison of the energies of one linac shows (the page and the export use the same numbers); None: no data."""
     since = None
     if months:
         today = date.today()
@@ -135,21 +121,80 @@ def compare_page(request: Request, linac_id: str = "", modality: str = "all", mo
         if periods:
             baselines[label] = periods
     if not series:
-        return render(request, "compare.html", user, **ctx)
-
+        return None
     mths, matrix = compare.align(series)
     common = compare.common_mode(mths, matrix)
     corr_labels, corr = compare.correlations(mths, matrix)
+    return dict(series=series, months=mths, matrix=matrix, common=common, corr_labels=corr_labels, corr=corr,
+                summaries=[compare.beam_summary(label, pts, baselines.get(label)) for label, pts in series.items()],
+                hints=compare.interpretation(common, corr_labels, corr))
+
+
+def compare_linac(conn, linac_id: str):
+    """The linac of the comparison: the chosen one, else the one with the most beams; None when there are no linacs."""
+    linacs = conn.execute("""SELECT l.id, l.name, (SELECT count(DISTINCT t.modality || '|' || t.nominal_energy || '|' || t.fff) FROM v_trend t
+                             WHERE t.linac = l.name) AS n_beams FROM linacs l ORDER BY l.name""").fetchall()
+    if not linacs:
+        return linacs, None
+    linac = next((l for l in linacs if str(l["id"]) == linac_id), None) if linac_id else max(linacs, key=lambda l: l["n_beams"])
+    if linac is None:
+        raise HTTPException(404, "Аппарат не найден")
+    return linacs, linac
+
+
+@router.get("/compare", response_class=HTMLResponse)
+def compare_page(request: Request, linac_id: str = "", modality: str = "all", months: str = "",
+                 user=Depends(current_user), conn=Depends(get_db)):
+    """Trends of several energies of one linac side by side, with a search for a common cause."""
+    if modality not in COMPARE_MODALITIES or months not in COMPARE_PERIODS:
+        raise HTTPException(422, "Неверные параметры сравнения")
+    linacs, linac = compare_linac(conn, linac_id)
+    ctx = dict(linacs=linacs, linac=None, modality=modality, months=months, modalities=COMPARE_MODALITIES,
+               periods=COMPARE_PERIODS, summaries=[], hints=[], flagged=[], corr_labels=[], plot={},
+               min_beams=compare.MIN_BEAMS, shift=str(compare.SHIFT_PCT).replace(".", ","))
+    if not linacs:
+        return render(request, "compare.html", user, **ctx)
+    ctx["linac"] = linac
+    data = compare_data(conn, linac, modality, months)
+    if data is None:
+        return render(request, "compare.html", user, **ctx)
+    series, matrix, common = data["series"], data["matrix"], data["common"]
     ctx.update(
-        summaries=[compare.beam_summary(label, pts, baselines.get(label)) for label, pts in series.items()],
-        hints=compare.interpretation(common, corr_labels, corr), flagged=[c for c in common if c.flagged],
-        corr_labels=corr_labels,
+        summaries=data["summaries"], hints=data["hints"], flagged=[c for c in common if c.flagged], corr_labels=data["corr_labels"],
         plot={"series": [{"label": label, "x": [p.on.isoformat() for p in pts], "y": [round(p.deviation_pct, 3) for p in pts]}
                          for label, pts in series.items()],
               "common": {"x": [c.month + "-15" for c in common], "y": [round(c.mean, 3) for c in common]},
-              "months": mths, "labels": list(matrix), "matrix": [[None if v is None else round(v, 3) for v in row] for row in matrix.values()],
-              "corr_labels": corr_labels, "corr": [[None if v is None else round(v, 3) for v in row] for row in corr]})
+              "months": data["months"], "labels": list(matrix), "matrix": [[None if v is None else round(v, 3) for v in row] for row in matrix.values()],
+              "corr_labels": data["corr_labels"], "corr": [[None if v is None else round(v, 3) for v in row] for row in data["corr"]]})
     return render(request, "compare.html", user, **ctx)
+
+
+@router.get("/compare/export")
+def compare_export(request: Request, linac_id: str = "", modality: str = "all", months: str = "", fmt: str = "xlsx",
+                   user=Depends(current_user), conn=Depends(get_db)):
+    """The comparison of the energies of a linac as a CSV (the table of the states) or an Excel file (four sheets)."""
+    if modality not in COMPARE_MODALITIES or months not in COMPARE_PERIODS:
+        raise HTTPException(422, "Неверные параметры сравнения")
+    if fmt not in ("csv", "xlsx"):
+        raise HTTPException(422, "Формат: csv или xlsx")
+    _linacs, linac = compare_linac(conn, linac_id)
+    data = compare_data(conn, linac, modality, months) if linac else None
+    if data is None:
+        raise HTTPException(404, "Для этого аппарата и периода нет данных для выгрузки")
+    lang = current_lang(request)
+    status = compare_export_module.status_rows(data["summaries"])
+    if fmt == "csv":
+        body, media, ext = trend_export.to_csv(status, lang), "text/csv; charset=utf-8", "csv"
+    else:
+        info = compare_export_module.parameter_rows(linac["name"], COMPARE_MODALITIES[modality], COMPARE_PERIODS[months], user["full_name"], date.today())
+        sheets = [("Параметры", info), ("Состояние", status), ("По месяцам", compare_export_module.month_rows(data)),
+                  ("Корреляции", compare_export_module.correlation_rows(data)), ("Выводы", compare_export_module.hint_rows(data))]
+        body = trend_export.to_xlsx(sheets, lang)
+        media, ext = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+    audit(conn, user["id"], "compare_export", "linacs", linac["id"], {"format": ext, "rows": len(data["summaries"]), "series": COMPARE_PERIODS[months]})
+    from urllib.parse import quote
+    pretty = quote(f"compare {linac['name']}.{ext}")
+    return Response(body, media_type=media, headers={"Content-Disposition": f"attachment; filename=\"compare.{ext}\"; filename*=UTF-8''{pretty}"})
 
 
 @router.post("/trends/baseline")

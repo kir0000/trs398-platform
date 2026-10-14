@@ -108,6 +108,10 @@ Tables are sorted by clicking a header; the page header is pinned.
 
 On the “Trends” page above the chart there are the buttons **“Download Excel”** and **“Download CSV”** (available to every role). The file belongs to the chosen beam and series (reference conditions). The Excel file has three sheets: “Data” (the date, the deviation, MR, the signals of the rules and of CUSUM, CL and the ±3σ limits of every point, the number of the baseline period, the source: a measurement or an imported journal, the protocol number, Dw(zmax)), “Summary” (CL, σ, status, trend, forecast, thresholds) and “Baseline periods”. The values are exact, not rounded to the screen. In the Russian interface the CSV uses “;” and the decimal comma (the Russian Excel reads it correctly), in the English one the comma and the point. Every export is written to the audit log.
 
+### Exporting the energy comparison
+
+On the “Energy comparison” page above the table there are the buttons **“Download Excel”** and **“Download CSV”**; the chosen linac, type of beams and period are exported. The Excel file has five sheets: “Parameters” (the linac, the filters, the limits, who exported and when), “State” (the table of the state of every energy), “By month” (the mean deviation of every beam by month, the mean over the energies, the spread, how many beams went up and down, the common shift), “Correlations” and “Conclusions” (the hints). The CSV holds the table of the state. The numbers are those of the page, not rounded to the screen. The export is written to the audit log.
+
 ### How to read CUSUM
 
 CUSUM accumulates small deviations from the centre line CL, so it notices a slow drift or a small constant shift earlier than
