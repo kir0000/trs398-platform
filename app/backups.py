@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from app import db, settings
+from app import db, health, settings
 
 STALE_AFTER = timedelta(hours=36)
 PATTERN = "trs398_*.db.gz"
@@ -133,6 +133,39 @@ def keep_days() -> int:
         return 30
 
 
+def verify(path: Path) -> dict:
+    """Open a backup the way a restore would (unpack, integrity check, count the measurements): {'ok', 'measurements', 'error'}."""
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            plain = Path(tmp) / "check.db"
+            with gzip.open(path, "rb") as f_in, open(plain, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            conn = sqlite3.connect(plain)
+            try:
+                verdict = conn.execute("PRAGMA integrity_check").fetchone()[0]
+                n = conn.execute("SELECT count(*) FROM measurement_sessions").fetchone()[0]
+            finally:
+                conn.close()
+        if verdict != "ok":
+            return {"ok": False, "measurements": None, "error": str(verdict)[:200]}
+        return {"ok": True, "measurements": n, "error": None}
+    except (OSError, EOFError, gzip.BadGzipFile, sqlite3.Error) as e:
+        return {"ok": False, "measurements": None, "error": str(e)[:200]}
+
+
+def _verify_file() -> Path:
+    return db.data_dir() / "backup_verify.json"
+
+
+def verify_status(name: str | None = None) -> dict | None:
+    """The result of the last check of a backup made by this program (None if it was made before checks existed or for another file)."""
+    try:
+        st = json.loads(_verify_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return st if name is None or st.get("name") == name else None
+
+
 def make(now: datetime | None = None, folder: Path | None = None, name_prefix: str = "trs398") -> Path:
     """A compressed copy of the database right now; copies older than the keeping period are removed. Returns its path."""
     now = now or datetime.now()
@@ -154,6 +187,14 @@ def make(now: datetime | None = None, folder: Path | None = None, name_prefix: s
                 shutil.copyfileobj(f_in, f_out)
         finally:
             Path(tmp).unlink(missing_ok=True)
+        check = verify(target)                           # a backup that cannot be read back is worse than none: it is not kept
+        try:
+            _verify_file().write_text(json.dumps({"name": target.name, "when": datetime.now().isoformat(timespec="seconds"), **check}), encoding="utf-8")
+        except OSError:
+            pass
+        if not check["ok"]:
+            target.unlink(missing_ok=True)
+            raise OSError(f"the new backup did not pass the check and was removed: {check['error']}")
         cutoff = time.time() - keep_days() * 86400
         for old in folder.glob(PATTERN):
             if old != target and old.stat().st_mtime < cutoff:
@@ -196,7 +237,7 @@ def latest(now: datetime | None = None) -> dict:
     when = datetime.fromtimestamp(newest.stat().st_mtime)
     stale = now - when > STALE_AFTER
     return {"found": True, "name": newest.name, "when": when, "size_kb": max(1, newest.stat().st_size // 1024),
-            "count": len(files), "stale": stale,
+            "count": len(files), "stale": stale, "verified": verify_status(newest.name),
             "message": ("Последняя резервная копия старше 36 часов: программа должна быть запущена в течение дня." if stale
                         else "Резервная копия свежая.")}
 
@@ -222,6 +263,7 @@ def start_scheduler(interval_s: int = 600) -> threading.Thread:
                 if due():
                     made = make()
                     db.system_event("backup_auto", "backups", None, {"file": made.name})
+                    health.check()                                           # the live file is checked once a day, too
             except Exception as e:                 # a failed copy must never stop the program; the page of backups shows that it is stale
                 log.exception("the daily backup failed")
                 db.system_event("backup_failed", "backups", None, {"error": str(e)[:200]})

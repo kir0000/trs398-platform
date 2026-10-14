@@ -5,7 +5,9 @@
 {% if requested %}<div class="card ok">Запрос отправлен: копия появится в списке через несколько секунд (обновите страницу).</div>{% endif %}
 <div class="card" style="border-color:var(--{{ 'bad' if backup.stale else 'ok' }})"><h2>Состояние</h2>
   {% if backup.found %}<p>Последняя: <b>{{ backup.name }}</b>, {{ backup.when.strftime('%d.%m.%Y %H:%M') }}, {{ backup.size_kb }} КБ. Всего копий: {{ backup.count }}.</p>{% endif %}
-  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0 0 10px">{{ backup.message }}</p>
+  <p class="{{ 'err' if backup.stale else 'ok' }}" style="margin:0 0 4px">{{ backup.message }}</p>
+  {% if backup.found %}{% if backup.verified %}<p class="{{ 'ok' if backup.verified.ok else 'err' }}" style="margin:0 0 10px">{% if backup.verified.ok %}Копия проверена: читается, измерений в ней {{ backup.verified.measurements }}.{% else %}Копия не прошла проверку: {{ backup.verified.error }}{% endif %}</p>
+  {% else %}<p class="muted" style="margin:0 0 10px">Эта копия сделана без проверки чтения (до версии 2.6).</p>{% endif %}{% endif %}
   <form method="post" action="/admin/backups/now"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary">Сделать копию сейчас</button></form>
   <p class="muted" style="font-size:13px">Автоматически: при запуске и каждый день после 02:00 (время компьютера), хранится 30 дней. Файлы лежат в папке <code>backups</code> внутри папки с данными.
   Сейчас в базе: измерений {{ counts.sessions }}, пользователей {{ counts.users }}.</p>

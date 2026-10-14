@@ -111,11 +111,15 @@ class Connection(sqlite3.Connection):
 
 def connect(path: str | os.PathLike | None = None) -> Connection:
     conn = sqlite3.connect(str(path or db_path()), factory=Connection, isolation_level=None, check_same_thread=False, timeout=15)
-    conn.row_factory = _dict_row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA busy_timeout = 15000")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL")
+    try:
+        conn.row_factory = _dict_row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 15000")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+    except sqlite3.Error:                                        # a file that is not a database: do not leave it open
+        conn.close()
+        raise
     return conn
 
 

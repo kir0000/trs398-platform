@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import applog, backups, i18n, updates
 from app.db import audit, connect, data_dir, db_path, get_db
 from app.security import MIN_PASSWORD_LENGTH, hash_password, verify_password
-from app import web
+from app import health, web
 from app.web import BASE, app_version, check_csrf, current_lang, current_user, has_users, render, throttle
 
 router = APIRouter()
@@ -125,7 +125,7 @@ def about_context(**extra):
     path = db_path()
     return dict(version=app_version(), data_dir=str(data_dir()), db_file=str(path), log_file=str(applog.log_path()),
                 db_mb=round(path.stat().st_size / 1048576, 1) if path.exists() else 0, backup=backups.latest(),
-                external=backups.external_status(), **extra)
+                external=backups.external_status(), health=health.status(), **extra)
 
 
 @router.get("/about", response_class=HTMLResponse)

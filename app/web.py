@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup as _Markup
 
-from app import fields, i18n, settings
+from app import fields, health, i18n, settings
 from app.db import get_db
 from app.notation import sym, sym_plain
 from app.security import ROLE_LABELS, LoginThrottle, can_create, can_review
@@ -127,7 +127,7 @@ def render(request: Request, name: str, user=None, status_code=200, **ctx):
     lang = current_lang(request)
     ctx.update(user=user, csrf=csrf_token(request), role_labels=ROLE_LABELS, status_labels=STATUS_LABELS,
                can_create=bool(user) and can_create(user["role"]), can_review=bool(user) and can_review(user["role"]),
-               lang=lang, other_lang="en" if lang == "ru" else "ru", app_version=app_version())
+               lang=lang, other_lang="en" if lang == "ru" else "ru", app_version=app_version(), db_problem=health.problem())
     response = templates.TemplateResponse(request, name, ctx, status_code=status_code)
     return HTMLResponse(i18n.translate_html(response.body.decode("utf-8"), lang), status_code=status_code)
 
