@@ -13,6 +13,16 @@
   <a href="/measurements" class="btn">Все</a>
   {% for k, v in status_labels.items() %}<a href="/measurements?status={{ k }}" class="btn{{ ' primary' if status == k }}">{{ v }}</a>{% endfor %}
 </div>
+<form method="get" action="/measurements" class="card row" style="gap:10px;align-items:end;flex-wrap:wrap">
+  {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+  <label>Аппарат<br><select name="linac"><option value="">Все</option>{% for l in linacs %}<option value="{{ l.id }}" {{ 'selected' if f.linac == l.id }}>{{ l.name }}</option>{% endfor %}</select></label>
+  <label>Пучок<br><select name="beam"><option value="">Все</option>{% for b in beams %}<option value="{{ b.id }}" {{ 'selected' if f.beam == b.id }}>{{ b.label }}</option>{% endfor %}</select></label>
+  <label>С даты<br><input type="date" name="from" value="{{ f['from'] or '' }}"></label>
+  <label>По дату<br><input type="date" name="to" value="{{ f['to'] or '' }}"></label>
+  <label>Поиск<br><input name="q" value="{{ f.q }}" placeholder="№ протокола, автор" size="20"></label>
+  <span><button class="primary">Показать</button> <a class="btn" href="/measurements{{ '?status=' ~ status if status }}">Сбросить</a></span>
+</form>
+<p class="muted" style="font-size:13px;margin:0 0 6px">{% if total %}Записей: {{ total }}{% if pages > 1 %}, показаны {{ first_row }}–{{ first_row + rows|length - 1 }} (страница {{ page }} из {{ pages }}); сортировка по заголовку действует на этой странице{% endif %}.{% else %}Записей по этим условиям нет.{% endif %}</p>
 <div class="card">
 <table class="sortable">
   <tr><th>№ протокола</th><th data-default="desc">Дата</th><th>Тип</th><th>Пучок</th><th>{% filter sym %}Dw(zmax), Гр/MU{% endfilter %}</th><th>Откл., %</th><th>Статус</th><th>Автор</th></tr>
@@ -26,5 +36,8 @@
   </tr>
   {% else %}<tr><td colspan="8" class="muted">Записей пока нет.</td></tr>{% endfor %}
 </table>
+{% if pages > 1 %}<p class="row" style="gap:8px;margin:10px 0 0">Страница {{ page }} из {{ pages }}:
+  {% if page > 1 %}<a class="btn" href="/measurements?page={{ page - 1 }}{{ '&' ~ query if query }}">← Назад</a>{% endif %}
+  {% if page < pages %}<a class="btn" href="/measurements?page={{ page + 1 }}{{ '&' ~ query if query }}">Вперёд →</a>{% endif %}</p>{% endif %}
 </div>
 {% endblock %}

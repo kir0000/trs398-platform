@@ -61,6 +61,10 @@ On the calculation sheet they are filled in automatically and are not changed.
    The **protocol number** (like `2026-0042`, numbered per year of the measurement) is assigned by the database when saving; you do not type it.
    It is shown in the list, on the record page and on the printed protocol and never changes. Use the “Note” field for a comment only.
 
+### The list of measurements
+
+The “Measurements” page shows the records 200 to a page (“Back” / “Next” at the bottom), nothing is cut off. The filters above the table: the status, the linac, the beam, the dates of the measurement, a search by the protocol number and the author. Sorting by a header of the table works on the current page, and the order of the pages is always from the newest to the oldest.
+
 ## 3. Review
 
 A second person opens the record from the “under review” list, checks the data and presses “Approve” or “Return”.

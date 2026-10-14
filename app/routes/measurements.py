@@ -179,20 +179,66 @@ def form_dict(form):
     return {k: v for k, v in form.items() if isinstance(v, str)}
 
 
+LIST_PAGE_SIZE = 200                                                # records on one page of the list (nothing is cut off: there are pages)
+
+
+def list_filters(params) -> dict:
+    """The filters of the list from the query string: status, linac, beam, dates of the measurement, a text (protocol number, author)."""
+    def number(name):
+        v = str(params.get(name, ""))
+        return int(v) if v.isdigit() else None
+
+    def day(name):
+        try:
+            return date.fromisoformat(str(params.get(name, "")))
+        except ValueError:
+            return None
+    status = str(params.get("status", ""))
+    return {"status": status if status in STATUS_LABELS else "", "linac": number("linac"), "beam": number("beam"),
+            "from": day("from"), "to": day("to"), "q": str(params.get("q", "")).strip()[:60]}
+
+
+def list_where(f: dict) -> tuple[str, list]:
+    cond, args = [], []
+    for column, key in (("s.status", "status"), ("l.id", "linac"), ("b.id", "beam")):
+        if f[key] not in (None, ""):
+            cond.append(f"{column} = %s")
+            args.append(f[key])
+    if f["from"]:
+        cond.append("s.measured_on >= %s")
+        args.append(f["from"].isoformat())
+    if f["to"]:
+        cond.append("s.measured_on <= %s")
+        args.append(f["to"].isoformat())
+    if f["q"]:
+        cond.append("(s.protocol_no LIKE %s OR uc.full_name LIKE %s OR uc.login LIKE %s)")
+        args += [f"%{f['q']}%"] * 3
+    return (" WHERE " + " AND ".join(cond)) if cond else "", args
+
+
 @router.get("/measurements", response_class=HTMLResponse)
-def measurements(request: Request, status: str = "", user=Depends(current_user), conn=Depends(get_db)):
-    where, params = "", []
-    if status in STATUS_LABELS:
-        where, params = "WHERE s.status = %s", [status]
+def measurements(request: Request, page: int = 1, user=Depends(current_user), conn=Depends(get_db)):
+    f = list_filters(request.query_params)
+    where, params = list_where(f)
+    base = """FROM measurement_sessions s JOIN beams b ON b.id = s.beam_id JOIN linacs l ON l.id = b.linac_id
+        JOIN users uc ON uc.id = s.created_by LEFT JOIN results r ON r.session_id = s.id"""
+    total = conn.execute(f"SELECT count(*) AS n {base}{where}", params).fetchone()["n"]
+    pages = max(1, -(-total // LIST_PAGE_SIZE))
+    page = min(max(page, 1), pages)
     rows = conn.execute(f"""SELECT s.id, s.protocol_no, s.measured_on, s.status, s.created_by, b.modality, b.nominal_energy, b.fff,
-        l.name AS linac, uc.full_name AS creator, r.dw_zmax, r.deviation_pct
-        FROM measurement_sessions s JOIN beams b ON b.id = s.beam_id JOIN linacs l ON l.id = b.linac_id
-        JOIN users uc ON uc.id = s.created_by LEFT JOIN results r ON r.session_id = s.id
-        {where} ORDER BY s.measured_on DESC, s.id DESC LIMIT 3000""", params).fetchall()
+        l.name AS linac, uc.full_name AS creator, r.dw_zmax, r.deviation_pct {base}{where}
+        ORDER BY s.measured_on DESC, s.id DESC LIMIT {LIST_PAGE_SIZE} OFFSET {(page - 1) * LIST_PAGE_SIZE}""", params).fetchall()
     for r in rows:
         r["label"] = beam_label(r)
     pending = conn.execute("SELECT count(*) AS n FROM measurement_sessions WHERE status = 'submitted'").fetchone()["n"]
-    return render(request, "list.html", user, rows=rows, status=status, pending=pending,
+    linacs = conn.execute("SELECT id, name FROM linacs ORDER BY name").fetchall()
+    beams = conn.execute("""SELECT b.id, b.modality, b.nominal_energy, b.fff, l.name AS linac FROM beams b JOIN linacs l ON l.id = b.linac_id
+                            ORDER BY l.name, b.modality, b.nominal_energy, b.fff""").fetchall()
+    for b in beams:
+        b["label"] = ("γ " if b["modality"] == "photon" else "e⁻ ") + beam_label(b)
+    query = "&".join(f"{k}={v}" for k, v in request.query_params.items() if k != "page" and v)
+    return render(request, "list.html", user, rows=rows, status=f["status"], f=f, pending=pending, total=total, page=page, pages=pages,
+                  page_size=LIST_PAGE_SIZE, first_row=(page - 1) * LIST_PAGE_SIZE + 1 if total else 0, linacs=linacs, beams=beams, query=query,
                   reminders=calibration_reminders(conn, date.today()))
 
 
