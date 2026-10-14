@@ -81,10 +81,10 @@ LABELS = {
     "comment": "Комментарий", "reason": "Причина", "protocol_no": "Протокол №", "new_id": "Новая запись №", "restored_id": "Снова действует запись №",
     "modality": "Тип пучка", "energy": "Энергия", "role": "Роль", "name": "Название", "folder": "Папка", "ok": "Успешно", "why": "Причина отказа",
     "from": "С", "to": "По", "fields": "Поля", "chamber_unit_id": "Камера №", "changed": "Изменено параметров", "changes": "Изменения", "version": "Версия",
-    "names": "Миграции", "file": "Файл", "error": "Ошибка", "sessions": "Записей", "results": "Результатов", "legacy": "Строк журнала",
+    "names": "Миграции", "file": "Файл", "error": "Ошибка", "sessions": "Записей измерений", "results": "Результатов", "legacy": "Строк журнала",
     "drafts": "Черновиков", "scope": "Область", "unc": "Состав протокола", "u": "u, %", "dist": "Распределение", "status": "Статус",
-    "beams": "Пучков", "linacs": "Аппаратов", "linac_fields": "Дополнены поля аппаратов (номера)", "beam_fields": "Дополнены поля пучков (номера)",
-    "sessions_removed": "Удалено записей", "beam": "Пучок", "calibrations": "Калибровок", "units": "Камер", "electrometers": "Электрометров", "users": "Пользователей",
+    "beams": "Создано пучков", "linacs": "Аппаратов", "linac_fields": "Дополнено полей аппаратов", "beam_fields": "Дополнено полей пучков",
+    "sessions_removed": "Удалено записей", "beam": "Пучок", "calibrations": "Создано калибровок", "units": "Создано камер", "electrometers": "Создано электрометров", "users": "Создано пользователей",
     "beam_id": "Пучок", "author_id": "Автор", "measured_on": "Дата измерения", "port": "Порт", "lan": "Доступ по сети", "language": "Язык",
     "backup_hour": "Час копии", "allowed_networks": "Разрешённые адреса", "session_hours": "Сеанс не дольше, часов",
     "session_idle_minutes": "Завершать сеанс после простоя, минут", "path": "Страница", "backup_keep_days": "Хранить копии, дней", "source": "Источник", "path": "Папка",
@@ -173,6 +173,9 @@ def label(action: str) -> str:
     return ACTIONS.get(action, (action, ""))[0]
 
 
+ID_LISTS = {"beams", "calibrations", "units", "electrometers", "users", "linacs", "beam_fields", "linac_fields"}   # lists of numbers: the reader needs how many
+
+
 FREE_TEXT = {"comment", "reason", "name", "note", "folder", "error", "file", "path"}          # typed by people or taken from the disk: never translated
 
 
@@ -188,7 +191,12 @@ def details_lines(details) -> list[tuple[str, str, bool]]:
     out = []
     for k, v in sorted(details.items(), key=lambda kv: ORDER.index(kv[0]) if kv[0] in ORDER else -1):
         name = LABELS.get(k, k)
-        if k in ("changes", "changed") and isinstance(v, dict):
+        if k in ID_LISTS and isinstance(v, list):                       # "12", not the twelve database numbers
+            if v:
+                out.append((name, str(len(v)), False))
+        elif k == "changes" and v == {}:
+            out.append(("", "Значения не изменились", False))
+        elif k in ("changes", "changed") and isinstance(v, dict):
             for col, pair in v.items():
                 if isinstance(pair, (list, tuple)) and len(pair) == 2:
                     out.append((LABELS.get(col, col), f"{text(pair[0], col)} → {text(pair[1], col)}", col in FREE_TEXT))

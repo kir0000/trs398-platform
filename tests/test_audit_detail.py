@@ -162,7 +162,7 @@ def test_polish_of_the_readable_records():
     assert ("С", "31.10.2025") in flat and ("По", "12.10.2026") in flat
     assert flat.index(("С", "31.10.2025")) + 1 == flat.index(("По", "12.10.2026"))                 # from, then to
     names = dict((k, v) for k, v, _ in lines)
-    assert names["Роль"] == "администратор" and names["Удалено записей"] == "3" and "Дополнены поля аппаратов (номера)" in names
+    assert names["Роль"] == "администратор" and names["Удалено записей"] == "3" and names["Дополнено полей аппаратов"] == "2"
 
 
 def test_a_beam_is_named_with_the_linac_once_and_the_uncertainty_by_its_modality(world, client):
@@ -173,3 +173,16 @@ def test_a_beam_is_named_with_the_linac_once_and_the_uncertainty_by_its_modality
     html = log(world, action="beam_params").text
     assert "TrueBeam, TrueBeam" not in html and "TrueBeam, 6 MV FFF" in html
     assert "Неопределённость, электроны" in log(world, action="uncertainty_reset").text
+
+
+def test_the_load_of_demo_data_is_a_summary_not_a_list_of_database_numbers():
+    lines = auditlog.details_lines({"beams": [16, 17, 18], "calibrations": [11, 12], "units": [7], "electrometers": [3], "users": [4, 5],
+                                    "linac_fields": [], "beam_fields": [16, 2, 17], "sessions": 504})
+    d = {k: v for k, v, _ in lines}
+    assert d == {"Создано пучков": "3", "Создано калибровок": "2", "Создано камер": "1", "Создано электрометров": "1",
+                 "Создано пользователей": "2", "Дополнено полей пучков": "3", "Записей измерений": "504"}      # an empty list says nothing: left out
+
+
+def test_a_save_without_changes_says_so():
+    assert [(k, v) for k, v, _ in auditlog.details_lines({"changes": {}})] == [("", "Значения не изменились")]
+    assert auditlog.details_lines({}) == []                                                                         # no details at all: nothing to say
