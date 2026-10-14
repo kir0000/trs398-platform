@@ -104,6 +104,10 @@ notes, the recalibration decision) or “no appendix”. The protocol is printed
 
 Tables are sorted by clicking a header; the page header is pinned.
 
+### Exporting a trend to Excel and CSV
+
+On the “Trends” page above the chart there are the buttons **“Download Excel”** and **“Download CSV”** (available to every role). The file belongs to the chosen beam and series (reference conditions). The Excel file has three sheets: “Data” (the date, the deviation, MR, the signals of the rules and of CUSUM, CL and the ±3σ limits of every point, the number of the baseline period, the source: a measurement or an imported journal, the protocol number, Dw(zmax)), “Summary” (CL, σ, status, trend, forecast, thresholds) and “Baseline periods”. The values are exact, not rounded to the screen. In the Russian interface the CSV uses “;” and the decimal comma (the Russian Excel reads it correctly), in the English one the comma and the point. Every export is written to the audit log.
+
 ### How to read CUSUM
 
 CUSUM accumulates small deviations from the centre line CL, so it notices a slow drift or a small constant shift earlier than

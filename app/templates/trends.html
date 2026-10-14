@@ -26,6 +26,9 @@
     {% if summary.forecast_out_of_tolerance %}<p class="warn">Прогноз выхода за ±2 %: {{ summary.forecast_out_of_tolerance.strftime('%d.%m.%Y') }}</p>
     {% elif summary.trend_pct_per_month is not none %}<p class="muted">Значимого тренда нет (меньше 0,05 %/мес).</p>{% endif %}
   </div>
+  <p class="row" style="gap:8px;margin:0 0 10px"><a class="btn" href="/trends/export?beam_id={{ beam.id }}&cond={{ (series_key or '')|urlencode }}&fmt=xlsx">Скачать Excel</a>
+    <a class="btn" href="/trends/export?beam_id={{ beam.id }}&cond={{ (series_key or '')|urlencode }}&fmt=csv">Скачать CSV</a>
+    <span class="muted" style="font-size:13px">точки ряда с пределами и сигналами, сводка, базовые периоды</span></p>
   <div class="card">
     <div id="plot" style="height:420px;display:none"></div>
     <div id="svgchart">{{ chart|safe }}</div>
