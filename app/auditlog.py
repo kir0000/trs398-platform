@@ -6,6 +6,7 @@ import csv
 import datetime as dt
 import io
 import json
+import re
 
 PAGE_SIZE = 100
 
@@ -61,6 +62,8 @@ ACTIONS = {
     "app_start": ("Программа запущена", "Настройки и копии"),
     "audit_export": ("Выгружен журнал аудита в CSV", "Настройки и копии"),
     "seed_demo": ("Загружены демонстрационные данные", "Настройки и копии"),
+    "remove_demo": ("Удалены демонстрационные данные", "Настройки и копии"),
+    "remove_demo_beam": ("Демонстрационный пучок удалён (появились реальные данные)", "Настройки и копии"),
     "migration_applied": ("Обновлена структура базы", "Настройки и копии"),
     "purge": ("Очистка базы", "Очистка"),
     "purge_denied": ("Очистка отклонена", "Очистка"),
@@ -74,10 +77,11 @@ ENTITIES = {"users": "Пользователь", "measurement": "Запись", 
 LABELS = {
     "comment": "Комментарий", "reason": "Причина", "protocol_no": "Протокол №", "new_id": "Новая запись №", "restored_id": "Снова действует запись №",
     "modality": "Тип пучка", "energy": "Энергия", "role": "Роль", "name": "Название", "folder": "Папка", "ok": "Успешно", "why": "Причина отказа",
-    "from": "С", "to": "По", "fields": "Поля", "chamber_unit_id": "Камера №", "changed": "Изменено", "changes": "Изменения", "version": "Версия",
+    "from": "С", "to": "По", "fields": "Поля", "chamber_unit_id": "Камера №", "changed": "Изменено параметров", "changes": "Изменения", "version": "Версия",
     "names": "Миграции", "file": "Файл", "error": "Ошибка", "sessions": "Записей", "results": "Результатов", "legacy": "Строк журнала",
     "drafts": "Черновиков", "scope": "Область", "unc": "Состав протокола", "u": "u, %", "dist": "Распределение", "status": "Статус",
-    "beams": "Пучков", "calibrations": "Калибровок", "units": "Камер", "electrometers": "Электрометров", "users": "Пользователей",
+    "beams": "Пучков", "linacs": "Аппаратов", "linac_fields": "Дополнены поля аппаратов (номера)", "beam_fields": "Дополнены поля пучков (номера)",
+    "sessions_removed": "Удалено записей", "beam": "Пучок", "calibrations": "Калибровок", "units": "Камер", "electrometers": "Электрометров", "users": "Пользователей",
     "beam_id": "Пучок", "author_id": "Автор", "measured_on": "Дата измерения", "port": "Порт", "lan": "Доступ по сети", "language": "Язык",
     "backup_hour": "Час копии", "backup_keep_days": "Хранить копии, дней", "source": "Источник", "path": "Папка",
     # the columns that edits compare
@@ -113,14 +117,25 @@ def _norm(v):
     return v
 
 
+_ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+ORDER = ["from", "to"]                                             # a period is read from the beginning to the end
+def _roles() -> dict:
+    from app.security import ROLE_LABELS
+    return ROLE_LABELS
+
+
 BOOLEAN_KEYS = {"fff", "archived", "kelec_separate", "cal_pol_corrected", "lan", "ok", "is_active"}
 
 
 def text(v, key: str | None = None) -> str:
     """A value as the administrator reads it."""
+    if key == "role" and isinstance(v, str) and v in _roles():
+        return _roles()[v]
     if isinstance(v, bool) or (key in BOOLEAN_KEYS and v in (0, 1)):
         return "да" if v else "нет"
     v = _norm(v)
+    if isinstance(v, str) and _ISO_DAY.fullmatch(v):               # dates as the program shows them everywhere: 31.10.2025
+        return f"{v[8:10]}.{v[5:7]}.{v[0:4]}"
     if v is None:
         return "—"
     if isinstance(v, float):
@@ -167,7 +182,7 @@ def details_lines(details) -> list[tuple[str, str, bool]]:
     if not details:
         return []
     out = []
-    for k, v in details.items():
+    for k, v in sorted(details.items(), key=lambda kv: ORDER.index(kv[0]) if kv[0] in ORDER else -1):
         name = LABELS.get(k, k)
         if k in ("changes", "changed") and isinstance(v, dict):
             for col, pair in v.items():
@@ -190,7 +205,7 @@ def describe(conn, rows) -> dict:
 
     def beam(bid):
         b = conn.execute("""SELECT b.*, l.name AS linac FROM beams b JOIN linacs l ON l.id = b.linac_id WHERE b.id = %s""", (bid,)).fetchone()
-        return f"{b['linac']}, {beam_label(b)}" if b else None
+        return beam_label(b) if b else None                           # the label already starts with the linac
 
     out = {}
     for r in rows:
@@ -222,7 +237,8 @@ def describe(conn, rows) -> dict:
             else:
                 name = f"{name} {n}"
         elif eid:
-            name = f"{name} {eid}"
+            kinds = {"photon": "фотоны", "electron": "электроны"}
+            name = f"{name}, {kinds[eid]}" if ent == "uncertainty" and eid in kinds else f"{name} {eid}"
         out[key] = (name, url)
     return out
 
