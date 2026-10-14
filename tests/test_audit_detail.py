@@ -28,6 +28,8 @@ def test_every_action_of_the_program_has_a_name_and_a_group():
         codes |= set(re.findall(r'audit\(\s*conn\s*,\s*[^,]+,\s*"([a-z_]+)"', text))
         codes |= set(re.findall(r'system_event\(\s*"([a-z_]+)"', text))
         codes |= set(re.findall(r"INSERT INTO audit_log\([^)]*\)\s*VALUES \(%s, '([a-z_]+)'", text))
+    for f in (ROOT / "tools").glob("*.py"):                                                  # the scripts write records too
+        codes |= set(re.findall(r"INSERT INTO audit_log\([^)]*\)\s*VALUES \('([a-z_]+)'", f.read_text(encoding="utf-8")))
     codes |= {"submit", "approve", "return", "activate", "deactivate"}                       # the ones that come from a variable
     missing = sorted(c for c in codes if c not in auditlog.ACTIONS)
     assert not missing, f"actions without a name in app/auditlog.py: {missing}"
@@ -151,3 +153,23 @@ def test_a_restore_leaves_a_record_after_the_next_start(client, tmp_path, monkey
     details = q(client, "SELECT details FROM audit_log WHERE action='restore' ORDER BY id DESC LIMIT 1")[0][0]
     assert details["file"] == "trs398_2026-10-13_120000.db.gz"
     note_restore()                                                                          # without a marker nothing happens
+
+
+def test_polish_of_the_readable_records():
+    """Details a reader sees: dates as dd.mm.yyyy, from before to, roles as words, no raw keys of the helper scripts, the linac once in a beam."""
+    lines = auditlog.details_lines({"to": "2026-10-12", "from": "2025-10-31", "role": "admin", "sessions_removed": 3, "linac_fields": [1, 2]})
+    flat = [(k, v) for k, v, _ in lines]
+    assert ("С", "31.10.2025") in flat and ("По", "12.10.2026") in flat
+    assert flat.index(("С", "31.10.2025")) + 1 == flat.index(("По", "12.10.2026"))                 # from, then to
+    names = dict((k, v) for k, v, _ in lines)
+    assert names["Роль"] == "администратор" and names["Удалено записей"] == "3" and "Дополнены поля аппаратов (номера)" in names
+
+
+def test_a_beam_is_named_with_the_linac_once_and_the_uncertainty_by_its_modality(world, client):
+    from app import db
+    with db.connect(client.owner_url) as conn:
+        conn.execute("INSERT INTO audit_log(user_id, action, entity, entity_id, details) VALUES (NULL, 'beam_params', 'beams', %s, '{}')", (str(world["beam_id"]),))
+        conn.execute("INSERT INTO audit_log(user_id, action, entity, entity_id, details) VALUES (NULL, 'uncertainty_reset', 'uncertainty', 'electron', '{}')")
+    html = log(world, action="beam_params").text
+    assert "TrueBeam, TrueBeam" not in html and "TrueBeam, 6 MV FFF" in html
+    assert "Неопределённость, электроны" in log(world, action="uncertainty_reset").text
