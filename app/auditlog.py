@@ -216,12 +216,28 @@ def details_lines(details) -> list[tuple[str, str, bool]]:
 
 
 def describe(conn, rows) -> dict:
-    """{(entity, entity_id): (text, url or None)} for the objects the records point to."""
+    """{(entity, entity_id): (text, url or None)} for the objects the records point to (one query per kind of object, not per record)."""
     from app.common import beam_label                                # the same name of a beam as everywhere in the program
 
-    def beam(bid):
-        b = conn.execute("""SELECT b.*, l.name AS linac FROM beams b JOIN linacs l ON l.id = b.linac_id WHERE b.id = %s""", (bid,)).fetchone()
-        return beam_label(b) if b else None                           # the label already starts with the linac
+    wanted: dict[str, set] = {}
+    for r in rows:
+        if r["entity_id"] is not None and str(r["entity_id"]).isdigit():
+            wanted.setdefault(r["entity"], set()).add(int(r["entity_id"]))
+
+    def fetch(sql, ids):
+        ids = sorted(ids)
+        if not ids:
+            return {}
+        marks = ",".join(["%s"] * len(ids))
+        return {row["id"]: row for row in conn.execute(sql.replace("{ids}", marks), ids).fetchall()}
+
+    sessions = fetch("SELECT id, protocol_no FROM measurement_sessions WHERE id IN ({ids})", wanted.get("measurement", ()))
+    beam_ids = wanted.get("beams", set()) | wanted.get("spc_baseline", set())
+    beams = fetch("SELECT b.*, l.name AS linac FROM beams b JOIN linacs l ON l.id = b.linac_id WHERE b.id IN ({ids})", beam_ids)
+    linacs = fetch("SELECT id, name FROM linacs WHERE id IN ({ids})", wanted.get("linacs", ()))
+    cals = fetch("""SELECT cal.id, ch.name, cu.serial_no, cal.calibrated_on FROM calibrations cal
+        JOIN chamber_units cu ON cu.id = cal.chamber_unit_id JOIN chambers ch ON ch.id = cu.chamber_id WHERE cal.id IN ({ids})""", wanted.get("calibrations", ()))
+    users = fetch("SELECT id, login, full_name FROM users WHERE id IN ({ids})", wanted.get("users", ()))
 
     out = {}
     for r in rows:
@@ -233,22 +249,21 @@ def describe(conn, rows) -> dict:
         if eid is not None and str(eid).isdigit():
             n = int(eid)
             if ent == "measurement":
-                s = conn.execute("SELECT protocol_no FROM measurement_sessions WHERE id = %s", (n,)).fetchone()
+                s = sessions.get(n)
                 detail = r.get("details") if isinstance(r.get("details"), dict) else {}
                 num = (s or {}).get("protocol_no") or (detail or {}).get("protocol_no")
                 name = f"Протокол № {num}" if num else f"Запись {n}"
                 url = f"/measurements/{n}" if s else None
             elif ent in ("beams", "spc_baseline"):
-                name = beam(n) or f"Пучок {n} (удалён)"
+                name = beam_label(beams[n]) if n in beams else f"Пучок {n} (удалён)"
             elif ent == "linacs":
-                row = conn.execute("SELECT name FROM linacs WHERE id = %s", (n,)).fetchone()
+                row = linacs.get(n)
                 name = f"Аппарат {row['name']}" if row else f"Аппарат {n} (удалён)"
             elif ent == "calibrations":
-                row = conn.execute("""SELECT ch.name, cu.serial_no, cal.calibrated_on FROM calibrations cal
-                    JOIN chamber_units cu ON cu.id = cal.chamber_unit_id JOIN chambers ch ON ch.id = cu.chamber_id WHERE cal.id = %s""", (n,)).fetchone()
+                row = cals.get(n)
                 name = f"Калибровка {row['name']}, SN {row['serial_no']}, {row['calibrated_on']:%d.%m.%Y}" if row else f"Калибровка {n} (удалена)"
             elif ent == "users":
-                row = conn.execute("SELECT login, full_name FROM users WHERE id = %s", (n,)).fetchone()
+                row = users.get(n)
                 name = f"Пользователь {row['login']} ({row['full_name']})" if row else f"Пользователь {n}"
             else:
                 name = f"{name} {n}"
