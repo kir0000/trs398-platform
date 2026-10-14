@@ -101,7 +101,7 @@ def test_every_status_of_a_record_on_every_page_for_every_role_has_no_russian_le
                     bad[f"{who} {url} ({state})"] = left[:5]
         for url in ("/measurements", "/measurements?status=draft", "/measurements?status=submitted", "/about", "/help", "/trends", "/compare",
                     "/uncertainty", "/equipment", "/equipment?tab=dosimeters", "/measurements/new?modality=photon",
-                    "/admin/users", "/admin/backups", "/admin/purge", "/admin/audit", "/admin/settings", "/nonexistent"):
+                    "/admin/users", "/admin/backups", "/admin/purge", "/admin/audit", "/admin/audit/clear", "/admin/settings", "/nonexistent"):
             r = s.get(url)
             checked += 1
             left = [t for t in i18n.leftovers(r.text) if t not in ALLOWED]

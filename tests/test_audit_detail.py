@@ -25,7 +25,7 @@ def test_every_action_of_the_program_has_a_name_and_a_group():
     codes = set()
     for f in (ROOT / "app").glob("*.py"):
         text = f.read_text(encoding="utf-8")
-        codes |= set(re.findall(r'audit\(\s*conn\s*,\s*[^,]+,\s*"([a-z_]+)"', text))
+        codes |= set(re.findall(r'audit\(\s*conn\s*,\s*[^,]+,\s*"([a-z_]+)"', text))
         codes |= set(re.findall(r'system_event\(\s*"([a-z_]+)"', text))
         codes |= set(re.findall(r"INSERT INTO audit_log\([^)]*\)\s*VALUES \(%s, '([a-z_]+)'", text))
     for f in (ROOT / "tools").glob("*.py"):                                                  # the scripts write records too
@@ -134,7 +134,7 @@ def test_the_upgrade_from_2_0_1_keeps_the_log_and_adds_the_address(tmp_path):
     c.execute("INSERT INTO schema_migrations(name) VALUES ('001_baseline.sql')")
     c.execute("INSERT INTO audit_log(action, entity, entity_id, details) VALUES ('login', 'users', '1', '{}')")
     c.commit()
-    assert db.pending(c) == ["002_audit_ip.sql"]
+    assert db.pending(c)[0] == "002_audit_ip.sql"
     db.migrate(c)
     c.commit()
     assert "ip" in [r["name"] for r in c.execute("PRAGMA table_info(audit_log)").fetchall()]

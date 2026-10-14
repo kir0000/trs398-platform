@@ -69,11 +69,13 @@ ACTIONS = {
     "remove_demo_beam": ("Демонстрационный пучок удалён (появились реальные данные)", "Настройки и копии"),
     "migration_applied": ("Обновлена структура базы", "Настройки и копии"),
     "purge": ("Очистка базы", "Очистка"),
+    "audit_pruned": ("Журнал аудита очищен", "Очистка"),
+    "audit_prune_denied": ("Очистка журнала отклонена", "Очистка"),
     "purge_denied": ("Очистка отклонена", "Очистка"),
 }
 GROUPS = ["Вход и пользователи", "Измерения", "Оборудование", "Тренды и неопределённость", "Настройки и копии", "Очистка"]
 
-ENTITIES = {"users": "Пользователь", "measurement": "Запись", "beams": "Пучок", "linacs": "Аппарат", "calibrations": "Калибровка",
+ENTITIES = {"audit": "Журнал аудита", "users": "Пользователь", "measurement": "Запись", "beams": "Пучок", "linacs": "Аппарат", "calibrations": "Калибровка",
             "spc_baseline": "Базовый период", "uncertainty": "Неопределённость", "settings": "Настройки", "backups": "Копии",
             "purge": "Очистка", "system": "Система", "seed": "Демонстрационные данные"}
 
@@ -83,6 +85,8 @@ LABELS = {
     "from": "С", "to": "По", "fields": "Поля", "chamber_unit_id": "Камера №", "changed": "Изменено параметров", "changes": "Изменения", "version": "Версия",
     "names": "Миграции", "file": "Файл", "error": "Ошибка", "sessions": "Записей измерений", "results": "Результатов", "legacy": "Строк журнала",
     "drafts": "Черновиков", "scope": "Область", "unc": "Состав протокола", "u": "u, %", "dist": "Распределение", "status": "Статус",
+    "deleted": "Удалено записей", "kept": "Осталось записей", "keep_days": "Оставлено дней (0: ничего)", "archive": "Файл архива (CSV)",
+    "sha256": "Контрольная сумма архива", "safety_copy": "Страховая копия базы", "first": "Самая ранняя из удалённых", "last": "Самая поздняя из удалённых",
     "beams": "Создано пучков", "linacs": "Аппаратов", "linac_fields": "Дополнено полей аппаратов", "beam_fields": "Дополнено полей пучков",
     "sessions_removed": "Удалено записей", "beam": "Пучок", "calibrations": "Создано калибровок", "units": "Создано камер", "electrometers": "Создано электрометров", "users": "Создано пользователей",
     "beam_id": "Пучок", "author_id": "Автор", "measured_on": "Дата измерения", "port": "Порт", "lan": "Доступ по сети", "language": "Язык",
@@ -176,7 +180,7 @@ def label(action: str) -> str:
 ID_LISTS = {"beams", "calibrations", "units", "electrometers", "users", "linacs", "beam_fields", "linac_fields"}   # lists of numbers: the reader needs how many
 
 
-FREE_TEXT = {"comment", "reason", "name", "note", "folder", "error", "file", "path"}          # typed by people or taken from the disk: never translated
+FREE_TEXT = {"comment", "reason", "name", "note", "folder", "error", "file", "path", "archive", "safety_copy"}          # typed by people or taken from the disk: never translated
 
 
 def details_lines(details) -> list[tuple[str, str, bool]]:
