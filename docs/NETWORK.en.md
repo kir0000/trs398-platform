@@ -13,6 +13,15 @@ The department's servers that are medical devices are not used for this: any ord
    The name of the laptop (`http://laptop-name:8000`) is handier than the address, which may change.
 4. Switch off: clear the tick in the same menu.
 
+## Limiting the access
+
+Administrator: “Settings” → “Network security”.
+
+- **Allowed addresses.** Empty: any address of the network may connect (the default). If you list addresses and networks (`192.168.1.0/24, 10.0.0.15`), the others get the page “403, access from this address is not allowed”. The laptop itself (`127.0.0.1`) is always allowed. The program does not let you save a list without your own address (otherwise you would lock yourself out). Refused requests are written to the audit log (no more than once an hour for one address). It is better to fix the address of the laptop in the router so that it does not change. The environment variable `TRS_ALLOWED_NETWORKS` is stronger than the setting.
+- **Lifetime of a session.** “A session lasts no longer than” (hours, 8 by default): after that you have to sign in again. “End the session after an idle time” (minutes, 0 — do not end): 30–60 is reasonable for shared laptops; an unsaved form is lost when the session ends. The sign-in page tells why the session ended.
+
+This does not replace encryption: the connection is still http.
+
 ## Points to note
 
 - While the server laptop is off or asleep the others cannot work. Disable sleep when on mains power.

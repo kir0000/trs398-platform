@@ -12,6 +12,13 @@
     <span class="muted" style="font-size:13px">Адрес для коллег: <code>{{ lan_url }}</code>. Соединение не шифруется: только внутренняя сеть. При первом включении Windows спросит разрешение брандмауэра.</span></p>
   <p><label>Порт <input name="port" type="number" min="1024" max="65535" value="{{ s.port }}" style="width:90px"></label>
     <span class="muted" style="font-size:13px">по умолчанию 8000; меняйте, если он занят другой программой</span></p>
+  <h2>Безопасность сети</h2>
+  <p><label>Разрешённые адреса<br><textarea name="allowed_networks" rows="2" style="width:100%;max-width:520px" placeholder="192.168.1.0/24, 10.0.0.15">{{ s.allowed_networks }}</textarea></label><br>
+    <span class="muted" style="font-size:13px">Пусто: можно с любого адреса (по умолчанию). Иначе только с перечисленных адресов и сетей (через запятую или с новой строки); этот компьютер (127.0.0.1) разрешён всегда. Отклонённые обращения записываются в журнал аудита (не чаще раза в час для одного адреса).</span></p>
+  <p><label>Сеанс не дольше <input name="session_hours" type="number" min="1" max="72" value="{{ s.session_hours }}" style="width:70px"> часов</label>
+    <span class="muted" style="font-size:13px">после этого срока нужно войти заново</span></p>
+  <p><label>Завершать сеанс после простоя <input name="session_idle_minutes" type="number" min="0" max="1440" value="{{ s.session_idle_minutes }}" style="width:80px"> минут</label>
+    <span class="muted" style="font-size:13px">0: не завершать; для общих ноутбуков разумно 30–60. Несохранённая форма при завершении сеанса теряется.</span></p>
   <h2>Язык</h2>
   <p><label>Язык по умолчанию <select name="language"><option value="ru" {{ 'selected' if s.language == 'ru' }}>русский</option><option value="en" {{ 'selected' if s.language == 'en' }}>English</option></select></label>
     <span class="muted" style="font-size:13px">каждый пользователь может переключить язык кнопкой вверху</span></p>

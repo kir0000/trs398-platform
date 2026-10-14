@@ -4,7 +4,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app import auditlog, backups, dbops
+from app import netaccess, auditlog, backups, dbops
 from app import settings as app_settings
 from app.db import audit, get_db
 from app.security import MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, hash_password, verify_password
@@ -83,7 +83,8 @@ def purge_counts(conn):
         (SELECT count(*) FROM users) AS users, (SELECT count(*) FROM audit_log) AS audit""").fetchone()
 
 
-ENV_SETTINGS = {"TRS_LANG": "language", "BACKUP_HOUR": "backup_hour", "BACKUP_KEEP_DAYS": "backup_keep_days", "BACKUP_COPY_DIR": "backup_copy_dir"}
+ENV_SETTINGS = {"TRS_LANG": "language", "BACKUP_HOUR": "backup_hour", "BACKUP_KEEP_DAYS": "backup_keep_days", "BACKUP_COPY_DIR": "backup_copy_dir",
+                "TRS_ALLOWED_NETWORKS": "allowed_networks"}
 
 
 def settings_context(s: dict, **extra):
@@ -102,9 +103,14 @@ async def settings_save(request: Request, user=Depends(require("admin")), conn=D
     check_csrf(request, form)
     values, errors = app_settings.validate(dict(form))
     current = app_settings.load()
+    if not errors and values.get("allowed_networks"):
+        host = request.client.host if request.client else None
+        if not netaccess.is_allowed(host, netaccess.parse(values["allowed_networks"])[0]):       # the administrator would lock out the others (and himself)
+            errors.append(f"Ваш адрес {host} не входит в список разрешённых. Добавьте его (или сеть, в которой он находится), иначе вы потеряете доступ с этого компьютера.")
     if errors:
         return render(request, "admin_settings.html", user, status_code=422,
-                      **settings_context({**current, **values, "lan": values["lan"]}, saved=False, errors=errors))
+                      **settings_context({**current, **values, "lan": values["lan"], "allowed_networks": str(form.get("allowed_networks", current["allowed_networks"]))},
+                                         saved=False, errors=errors))
     new = {**current, **values}                                  # the folder of the second copy has its own form on the Backups page
     app_settings.save(new)
     changed = {k: new[k] for k in values if new[k] != current.get(k)}

@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import applog, backups, i18n, updates
 from app.db import audit, connect, data_dir, db_path, get_db
 from app.security import MIN_PASSWORD_LENGTH, hash_password, verify_password
+from app import web
 from app.web import BASE, app_version, check_csrf, current_lang, current_user, has_users, render, throttle
 
 router = APIRouter()
@@ -23,10 +24,10 @@ def set_language(request: Request, code: str, next: str = "/"):
 
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, created: str = "", conn=Depends(get_db)):
+def login_page(request: Request, created: str = "", ended: str = "", conn=Depends(get_db)):
     if not has_users(conn):
         return RedirectResponse("/setup", status_code=303)             # first run: create the administrator
-    return render(request, "login.html", created=bool(created))
+    return render(request, "login.html", created=bool(created), ended=ended if ended in ("idle", "age") else "")
 
 
 @router.get("/setup", response_class=HTMLResponse)
@@ -79,6 +80,7 @@ async def login(request: Request, conn=Depends(get_db)):
     throttle.reset(login_name)
     request.session.clear()
     request.session["uid"] = u["id"]
+    request.session["login_at"] = request.session["last"] = web.clock()
     audit(conn, u["id"], "login", "users", u["id"])
     return RedirectResponse("/measurements", status_code=303)
 

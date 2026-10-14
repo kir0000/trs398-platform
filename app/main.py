@@ -7,12 +7,12 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import applog, backups, services
+from app import applog, backups, netaccess, services
 from app.db import audit, connect, data_dir, migrate, request_ip, session_secret, system_event
 from app.db import has_data as db_has_data
 from app.db import pending as db_pending
@@ -78,8 +78,30 @@ async def lifespan(_app):
 
 app = FastAPI(title="TRS-398 Rev.1", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")      # htmx and Plotly are served locally: no internet needed
-app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="lax", max_age=8 * 3600,
+app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="lax", max_age=72 * 3600,
                    https_only=os.environ.get("HTTPS_ONLY") == "1")
+
+
+DENIED_PAGE = (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    "<title>403</title><style>body{font:16px system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:0 16px;color:#222}</style></head><body>"
+    "<h1>403</h1><p>Доступ с этого адреса не разрешён. Обратитесь к администратору программы.</p>"
+    "<p>Access from this address is not allowed. Ask the administrator of the program.</p></body></html>")
+
+
+@app.middleware("http")
+async def guard_the_address(request: Request, call_next):
+    """Only the allowed addresses (settings: "Allowed addresses") may use the program; the computer itself always may."""
+    host = request.client.host if request.client else None
+    if not netaccess.is_allowed(host):
+        if netaccess.should_log_denial(host):
+            token = request_ip.set(host)
+            try:
+                system_event("access_denied", "system", None, {"path": request.url.path[:80]})
+            finally:
+                request_ip.reset(token)
+        return HTMLResponse(DENIED_PAGE, status_code=403)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -94,7 +116,7 @@ async def remember_the_address(request: Request, call_next):
 
 @app.exception_handler(NotAuthenticated)
 async def _redirect_to_login(_request, _exc):
-    return RedirectResponse("/login", status_code=303)
+    return RedirectResponse("/login" + (f"?ended={_exc.reason}" if getattr(_exc, "reason", "") else ""), status_code=303)
 
 
 @app.exception_handler(StarletteHTTPException)
