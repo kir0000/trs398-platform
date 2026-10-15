@@ -26,7 +26,7 @@ def test_the_demo_database_is_clean_and_drifts_and_recovers(tmp_path):
                        JOIN measurement_sessions s ON s.beam_id = b.id WHERE l.name LIKE '%SAD' GROUP BY b.id""").fetchall()
     assert len(sad) == 3
     for _, depth, tmr, expected, geometry, ref_key, pdd in sad:                                 # SAD, the reference point at 10 cm, 1 cGy/MU at dmax as in TG-51
-        assert (depth, geometry, pdd) == (10, "SAD", None) and expected == tmr and 0.7 < tmr < 0.95 and ref_key.startswith("SAD|z=10|")
+        assert (depth, geometry, pdd) == (10, "SAD", None) and tmr is None and 0.6 < expected < 0.8 and ref_key.startswith("SAD|z=10|")
     for beam_id, in c.execute("SELECT id FROM beams").fetchall():
         dev = [d for d, in c.execute("""SELECT r.deviation_pct FROM results r JOIN measurement_sessions s ON s.id = r.session_id
                                         WHERE s.beam_id = ? ORDER BY s.measured_on""", (beam_id,))]

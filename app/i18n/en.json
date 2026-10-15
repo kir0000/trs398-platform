@@ -297,7 +297,7 @@
   "SSD: референсное расстояние 100 см до поверхности (SSD). SAD: камера на глубине 10 см при SSD = 90 см (расстояние источник–ось 100 см); тогда используется TMR вместо PDD.": "SSD: reference distance of 100 cm to the surface. SAD: the chamber at a depth of 10 cm with SSD = 90 cm (source–axis distance 100 cm); then TMR is used instead of PDD.",
   "TG-51 Addendum (i): эталонный класс": "TG-51 Addendum (i): reference-class equipment",
   "TG-51 Addendum (ii): типичные условия": "TG-51 Addendum (ii): typical conditions",
-  "TG-51: 1 сГр/MU на zmax, пересчёт через TMR(10)": "TG-51: 1 cGy/MU at zmax, converted through TMR(10)",
+  "TG-51: ожидаемая доза на глубине 10 см, SAD (1 сГр/MU на zmax, %dd(10)x / 100)": "TG-51: expected dose at 10 cm depth, SAD (1 cGy/MU at zmax, %dd(10)x / 100)",
   "TPR20,10 с линейной интерполяцией": "TPR20,10 with linear interpolation",
   "TRS-398 Rev.1 · версия": "TRS-398 Rev.1 · version",
   "TRS-398 Rev.1, разд. 7.10 (Табл. 24 — калибровка по": "TRS-398 Rev.1, sec. 7.10 (Table 24: calibration in",

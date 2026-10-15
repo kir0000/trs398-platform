@@ -1,6 +1,6 @@
 """Make a clean demonstration database for a release: two new linacs and 3 years of monthly measurements.
 Demo Linac: 3 photon and 5 electron beams, calibrated at SSD 100 cm. Demo Linac SAD: 3 photon beams calibrated at SAD, reference point at 10 cm
-depth (SSD 90 cm), dose as in AAPM TG-51: 1 cGy/MU at dmax, so the expected dose at 10 cm is TMR(10) cGy/MU.
+depth (SSD 90 cm), dose as in AAPM TG-51: 1 cGy/MU at dmax, so the expected dose at 10 cm is %dd(10)x / 100 cGy/MU (about 0.67-0.77 by energy).
 
     python tools/make_demo_release.py [--out <folder>] [--years 3] [--end YYYY-MM-DD]
 
@@ -49,9 +49,9 @@ def drift_series(rng: random.Random, months: int, sign: int, peak: float, kinds:
     return out
 
 
-def tmr_at_depth(spec: dict, depth: float = SAD_DEPTH) -> float:
-    """TMR at `depth` from the PDD (Mayneord factor from SSD 100 cm), the plausible number of a 10 x 10 field."""
-    return round(spec["pdd10"] / 100 * ((100 + depth) / (100 + spec["zmax"])) ** 2, 3)
+def expected_dose(spec: dict) -> float:
+    """The expected dose at 10 cm depth, cGy/MU, with 1 cGy/MU at dmax (TG-51): the percent depth dose at 10 cm / 100."""
+    return round(spec["pdd10"] / 100, 3)
 
 
 def make_sad_seeder(sd):
@@ -70,15 +70,15 @@ def make_sad_seeder(sd):
         def fill_beam_parameters(self, beam_id, modality, energy, fff):
             super().fill_beam_parameters(beam_id, modality, energy, fff)
             if self.is_sad:
-                tmr = tmr_at_depth(sd.PHOTONS[(energy, fff)])
-                self.c.execute("""UPDATE beams SET ref_depth = %s, tmr_zref = %s, exp_cgy_mu = %s, exp_zref = %s, exp_source = %s WHERE id = %s""",
-                               (SAD_DEPTH, tmr, tmr, SAD_DEPTH, "TG-51: 1 сГр/MU на zmax, пересчёт через TMR(10)", beam_id))
+                tmr = expected_dose(sd.PHOTONS[(energy, fff)])
+                self.c.execute("""UPDATE beams SET ref_depth = %s, exp_cgy_mu = %s, exp_zref = %s, exp_source = %s WHERE id = %s""",
+                               (SAD_DEPTH, tmr, SAD_DEPTH, "TG-51: ожидаемая доза на глубине 10 см, SAD (1 сГр/MU на zmax, %dd(10)x / 100)", beam_id))
 
         def photon_record(self, rng, cid, nd_w, kelec, energy, fff, d):
             if not self.is_sad:
                 return super().photon_record(rng, cid, nd_w, kelec, energy, fff, d)
             spec = sd.PHOTONS[(energy, fff)]
-            tmr = tmr_at_depth(spec)
+            tmr = expected_dose(spec)
             p, t, mu = round(min(max(rng.gauss(100.9, 0.8), 98.6), 103.0), 2), round(rng.gauss(22.2, 0.5), 1), 200
             tpr = ph.beam_quality_tpr(fff, spec["pdd10"], spec["pdd20"])
             ratio = 1.0062
@@ -95,7 +95,7 @@ def make_sad_seeder(sd):
             extra = {"demo": True, "form": {
                 "pdd10": str(spec["pdd10"]).replace(".", ","), **({"pdd20": str(spec["pdd20"]).replace(".", ",")} if spec["pdd20"] else {}),
                 "geometry": "SAD", "field_size": field, "zref": "10", "ref_distance": "90", "zmax": str(spec["zmax"]).replace(".", ","),
-                "dose_rate": str(spec["rate"]), "exp_cgy_mu": str(tmr).replace(".", ","), "exp_source": "TG-51: 1 сГр/MU на zmax, пересчёт через TMR(10)",
+                "dose_rate": str(spec["rate"]), "exp_cgy_mu": str(tmr).replace(".", ","), "exp_source": "TG-51: ожидаемая доза на глубине 10 см, SAD (1 сГр/MU на zmax, %dd(10)x / 100)",
                 "cal_depth": "5", "cal_rh": "50", "polarity_cal": "−", "polarity_user": "−", "electrometer_range": "Medium",
                 "p0": "101,325", "t0": "22", "kelec_separate": "1", "kelec_lab": sd.LAB}}
             values = dict(mu=mu, p=p, t=t, rh=round(rng.gauss(45, 6)), v1=-300, v2=-100, m1=m1s, m2=m2s, mp=mps, mm=mms, quality=tpr, pdd=None,
