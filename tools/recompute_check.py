@@ -35,8 +35,9 @@ for row in rows:
         bad.append((row["id"], f"cannot recompute: {e}"))
         continue
     checked += 1
-    diffs = [f"{k}: stored {float(stored[k]):.10g}, now {float(res[k]):.10g}" for k in FIELDS
-             if abs(float(stored[k]) - float(res[k])) > TOL * max(1.0, abs(float(stored[k])))]
+    diffs = [f"{k}: stored {stored[k]}, now {res[k]}" for k in FIELDS if (stored[k] is None) != (res[k] is None)]     # SAD with an expected dose has no Dw(zmax)
+    diffs += [f"{k}: stored {float(stored[k]):.10g}, now {float(res[k]):.10g}" for k in FIELDS
+              if stored[k] is not None and res[k] is not None and abs(float(stored[k]) - float(res[k])) > TOL * max(1.0, abs(float(stored[k])))]
     if diffs:
         bad.append((row["id"], "; ".join(diffs)))
 print(f"records with results: {len(rows)}, recomputed: {checked}, skipped: {skipped}")

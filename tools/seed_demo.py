@@ -267,12 +267,12 @@ class Seeder:
     def insert(self, beam_id, cal_id, phys, rev, on, values, results, extra, note):
         sid = self.one("""INSERT INTO measurement_sessions(measured_on, beam_id, calibration_id, geometry, mu, pressure_kpa,
             temp_c, humidity_pct, v1, v2, m1_readings, m2_readings, m_plus_readings, m_minus_readings, beam_quality, pdd_zref,
-            note, status, created_by, approved_by, approved_at, extra)
-            VALUES (%s,%s,%s,'SSD',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'approved',%s,%s,%s,%s) RETURNING id""",
-                       (on, beam_id, cal_id, values["mu"], values["p"], values["t"], values["rh"], values["v1"], values["v2"],
+            note, status, created_by, approved_by, approved_at, extra, ref_key)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'approved',%s,%s,%s,%s,%s) RETURNING id""",
+                       (on, beam_id, cal_id, values.get("geometry", "SSD"), values["mu"], values["p"], values["t"], values["rh"], values["v1"], values["v2"],
                         values["m1"], values["m2"], values["mp"], values["mm"], values["quality"], values["pdd"], note,
                         phys, rev, dt.datetime.combine(on + dt.timedelta(days=1), dt.time(10, 0), dt.timezone.utc),
-                        Jsonb(extra)))["id"]
+                        Jsonb(extra), values.get("ref_key")))["id"]
         cols = ("k_tp", "k_elec", "k_pol", "k_s", "k_vol", "k_q", "m_corrected", "dw_zref", "dw_zmax", "deviation_pct",
                 "formula_version", "tables_version")
         self.c.execute(f"INSERT INTO results(session_id, {', '.join(cols)}) VALUES (%s, {', '.join(['%s'] * len(cols))})",
