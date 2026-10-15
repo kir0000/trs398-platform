@@ -1,4 +1,6 @@
-"""Make a clean demonstration database for a release: nothing but one new linac (3 photon and 5 electron beams) and 3 years of monthly measurements.
+"""Make a clean demonstration database for a release: two new linacs and 3 years of monthly measurements.
+Demo Linac: 3 photon and 5 electron beams, calibrated at SSD 100 cm. Demo Linac SAD: 3 photon beams calibrated at SAD, reference point at 10 cm
+depth (SSD 90 cm), dose as in AAPM TG-51: 1 cGy/MU at dmax, so the expected dose at 10 cm is %dd(10)x / 100 cGy/MU (about 0.67-0.77 by energy).
 
     python tools/make_demo_release.py [--out <folder>] [--years 3] [--end YYYY-MM-DD]
 
@@ -22,6 +24,9 @@ sys.path.insert(0, str(ROOT / "tools"))
 NAME, MODEL, SERIAL = "Demo Linac", "Demo Linac (demonstration data)", "0001"
 PHOTON_BEAMS = [("photon", 6, False), ("photon", 6, True), ("photon", 10, True)]
 ELECTRON_BEAMS = [("electron", e, False) for e in (6, 9, 12, 15, 18)]
+SAD_NAME, SAD_MODEL, SAD_SERIAL = "Demo Linac SAD", "Demo Linac SAD (demonstration data)", "0002"
+SAD_BEAMS = [("photon", 6, False), ("photon", 10, True), ("photon", 15, False)]
+SAD_DEPTH, SAD_SSD = 10.0, 90.0                                      # the reference point: 10 cm, the source-axis distance 100 cm
 PEAKS = [3.0, 2.6, 2.9, 2.4, 3.0, 2.7, 2.5, 2.8]                    # the largest deviation of each beam before its re-adjustment, %
 
 
@@ -44,6 +49,62 @@ def drift_series(rng: random.Random, months: int, sign: int, peak: float, kinds:
     return out
 
 
+def expected_dose(spec: dict) -> float:
+    """The expected dose at 10 cm depth, cGy/MU, with 1 cGy/MU at dmax (TG-51): the percent depth dose at 10 cm / 100."""
+    return round(spec["pdd10"] / 100, 3)
+
+
+def make_sad_seeder(sd):
+    """The seeder whose beams of the SAD linac are measured at SAD: the dose at the reference point against the expected 1 cGy/MU at dmax."""
+    from dataclasses import asdict
+    from core import photon as ph
+
+    class SadSeeder(sd.Seeder):
+        linac_id = None
+
+        def ensure_beam(self, linac_id, modality, energy, fff):
+            self.linac_id = linac_id
+            self.is_sad = self.one("SELECT name FROM linacs WHERE id = %s", (linac_id,))["name"] == SAD_NAME
+            return super().ensure_beam(linac_id, modality, energy, fff)
+
+        def fill_beam_parameters(self, beam_id, modality, energy, fff):
+            super().fill_beam_parameters(beam_id, modality, energy, fff)
+            if self.is_sad:
+                tmr = expected_dose(sd.PHOTONS[(energy, fff)])
+                self.c.execute("""UPDATE beams SET ref_depth = %s, exp_cgy_mu = %s, exp_zref = %s, exp_source = %s WHERE id = %s""",
+                               (SAD_DEPTH, tmr, SAD_DEPTH, "TG-51: ожидаемая доза на глубине 10 см, SAD (1 сГр/MU на zmax, %dd(10)x / 100)", beam_id))
+
+        def photon_record(self, rng, cid, nd_w, kelec, energy, fff, d):
+            if not self.is_sad:
+                return super().photon_record(rng, cid, nd_w, kelec, energy, fff, d)
+            spec = sd.PHOTONS[(energy, fff)]
+            tmr = expected_dose(spec)
+            p, t, mu = round(min(max(rng.gauss(100.9, 0.8), 98.6), 103.0), 2), round(rng.gauss(22.2, 0.5), 1), 200
+            tpr = ph.beam_quality_tpr(fff, spec["pdd10"], spec["pdd20"])
+            ratio = 1.0062
+            base = dict(chamber_id=cid, nd_w=nd_w, mu=mu, pressure_kpa=p, temp_c=t, v1=-300, v2=-100, tpr=tpr, fff=fff, k_elec=kelec,
+                        geometry="SAD", expected_cgy_mu=tmr, zref=SAD_DEPTH, ref_distance_cm=SAD_SSD)
+            unit = ph.calculate(ph.PhotonInput(m1=[1.0] * 3, m2=[1 / ratio] * 3, m_plus=[0.9996] * 3, m_minus=[1.0] * 3, **base))
+            k_all = unit.m_corrected * mu
+            dw_zref = tmr / 100 * (1 + d / 100)                         # Gy/MU at the reference point
+            m1 = dw_zref / (nd_w * unit.k_q) * mu / k_all
+            m1s = [round(m1 * (1 + rng.gauss(0, 0.0003)), 4) for _ in range(3)]
+            m2s, mps, mms = [round(x / ratio, 4) for x in m1s], [round(x * 0.9996, 4) for x in m1s], list(m1s)
+            res = asdict(ph.calculate(ph.PhotonInput(m1=m1s, m2=m2s, m_plus=mps, m_minus=mms, **base)))
+            field = "10 х 10"
+            extra = {"demo": True, "form": {
+                "pdd10": str(spec["pdd10"]).replace(".", ","), **({"pdd20": str(spec["pdd20"]).replace(".", ",")} if spec["pdd20"] else {}),
+                "geometry": "SAD", "field_size": field, "zref": "10", "ref_distance": "90", "zmax": str(spec["zmax"]).replace(".", ","),
+                "dose_rate": str(spec["rate"]), "exp_cgy_mu": str(tmr).replace(".", ","), "exp_source": "TG-51: ожидаемая доза на глубине 10 см, SAD (1 сГр/MU на zmax, %dd(10)x / 100)",
+                "cal_depth": "5", "cal_rh": "50", "polarity_cal": "−", "polarity_user": "−", "electrometer_range": "Medium",
+                "p0": "101,325", "t0": "22", "kelec_separate": "1", "kelec_lab": sd.LAB}}
+            values = dict(mu=mu, p=p, t=t, rh=round(rng.gauss(45, 6)), v1=-300, v2=-100, m1=m1s, m2=m2s, mp=mps, mm=mms, quality=tpr, pdd=None,
+                          geometry="SAD", ref_key=f"SAD|z={SAD_DEPTH:g}|10 x 10|{tmr:g}")
+            return values, res, extra
+
+    return SadSeeder
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=ROOT / "transfer")
@@ -60,12 +121,12 @@ def main():
     import seed_demo as sd
     from app import backups, db as appdb, services
 
-    sd.LINACS = [(NAME, MODEL, SERIAL, PHOTON_BEAMS + ELECTRON_BEAMS)]
-    sd.SETS = {NAME: sd.SETS["TrueBeam"]}
+    sd.LINACS = [(NAME, MODEL, SERIAL, PHOTON_BEAMS + ELECTRON_BEAMS), (SAD_NAME, SAD_MODEL, SAD_SERIAL, SAD_BEAMS)]
+    sd.SETS = {NAME: sd.SETS["TrueBeam"], SAD_NAME: {"photon": sd.SETS["Versa HD"]["photon"]}}
     sd.ELECTRONS[18] = dict(r50=7.55, pdd=98.6, zmax=2.4)
     sd.LINKED = {}
     sd.OVERRIDES = {}
-    order = {b: i for i, b in enumerate(PHOTON_BEAMS + ELECTRON_BEAMS)}
+    order = PHOTON_BEAMS + ELECTRON_BEAMS + SAD_BEAMS
 
     def series(rng, months, **_ignored):                        # the seeder asks for one series per beam, in the order of the beams
         series.n += 1
@@ -80,7 +141,7 @@ def main():
     with appdb.connect() as conn:
         appdb.migrate(conn)
         services.seed_chambers(conn)
-        summary = sd.Seeder(conn).run(months, end, linked=False)
+        summary = make_sad_seeder(sd)(conn).run(months, end, linked=False)
         conn.commit()
     assert len(summary["beams"]) == len(order) and not summary["skipped"], summary
     a.out.mkdir(parents=True, exist_ok=True)
