@@ -4,7 +4,8 @@ depth (SSD 90 cm), dose as in AAPM TG-51: 1 cGy/MU at dmax, so the expected dose
 
     python tools/make_demo_release.py [--out <folder>] [--years 3] [--end YYYY-MM-DD]
 
-Every beam drifts away from the nominal output by up to 3 % (the sign differs from beam to beam), is re-adjusted and stays near 0 afterwards.
+Demo Linac: all its energies drift together, growing for 3-5 months up to about 2 %, then are re-adjusted and stay near 0 (three episodes).
+Demo Linac SAD is independent: a drift over 6 months up to about 2 %, a re-adjustment, and once more.
 The database is built from scratch in a temporary folder (the database of the program is never touched), there are no working accounts (only the two inactive, locked demo authors of the records): the person
 who loads the file creates the administrator at the first start. Writes <out>/trs398_demo_<date>.db.gz (default folder: `transfer` of the project),
 which loads like any backup: load-test-db.bat of the portable copy, or the tray command «Восстановить из копии…».
@@ -27,25 +28,34 @@ ELECTRON_BEAMS = [("electron", e, False) for e in (6, 9, 12, 15, 18)]
 SAD_NAME, SAD_MODEL, SAD_SERIAL = "Demo Linac SAD", "Demo Linac SAD (demonstration data)", "0002"
 SAD_BEAMS = [("photon", 6, False), ("photon", 10, True), ("photon", 15, False)]
 SAD_DEPTH, SAD_SSD = 10.0, 90.0                                      # the reference point: 10 cm, the source-axis distance 100 cm
-PEAKS = [3.0, 2.6, 2.9, 2.4, 3.0, 2.7, 2.5, 2.8]                    # the largest deviation of each beam before its re-adjustment, %
+# Drift episodes of a linac: (first month, months of growth, deviation reached, %). All beams of the linac move together in an episode
+# (the monitor chamber or the steering drifts, not one energy), then the output is re-adjusted and stays near 0 until the next episode.
+EPISODES = {
+    NAME: [(5, 4, 2.1), (19, 5, 2.0), (30, 3, 1.4)],                # growth in 3-5 months up to about 2 %
+    SAD_NAME: [(9, 6, 2.0), (25, 6, 1.9)],                           # an independent linac: slow drift over 6 months
+}
+GAIN = {"photon": 1.0, "electron": 0.9}                              # electrons follow the common drift a little less
 
 
-def drift_series(rng: random.Random, months: int, sign: int, peak: float, kinds: dict) -> list[tuple[float, str]]:
-    """(deviation %, kind): a steady drift to `sign * peak`, the re-adjustment, then the output stays near 0."""
-    length = rng.randint(11, 16)
-    out = []
-    near = 0.0
+def drift_series(rng: random.Random, months: int, episodes: list, gain: float, common: list[float]) -> list[tuple[float, str]]:
+    """(deviation %, kind) per month: a steady common growth in each episode, the re-adjustment after it, then a bounded wander around 0.
+    `common` is the noise shared by all beams of the linac."""
+    ramp = {}
+    for first, length, peak in episodes:
+        for k in range(length):
+            ramp[first + k] = peak * (k + 1) / length
+        ramp[first + length] = None                                  # the re-adjustment
+    out, near = [], 0.0
     for i in range(months):
-        if i < length:
-            level = sign * peak * (i + 1) / length
-            kind = "event" if abs(level) >= 2.0 and (i == 0 or abs(out[-1][0]) < 2.0 - 0.3) else "plan"
-            out.append((round(level + rng.gauss(0, 0.12), 3), kind))
-        elif i == length:
-            near = rng.uniform(-0.12, 0.12)
-            out.append((round(near + rng.gauss(0, 0.08), 3), "adjust"))
+        if i in ramp and ramp[i] is not None:
+            level = gain * ramp[i]
+            out.append((round(level + common[i] + rng.gauss(0, 0.09), 3), "event" if abs(level) >= 2.0 else "plan"))
+        elif i in ramp:
+            near = rng.uniform(-0.1, 0.1)
+            out.append((round(near + common[i] + rng.gauss(0, 0.07), 3), "adjust"))
         else:
-            near = 0.85 * near + rng.gauss(0, 0.07)                 # a bounded wander around 0
-            out.append((round(near + rng.gauss(0, 0.12), 3), "plan"))
+            near = 0.85 * near + rng.gauss(0, 0.06)
+            out.append((round(near + common[i] + rng.gauss(0, 0.1), 3), "plan"))
     return out
 
 
@@ -128,10 +138,18 @@ def main():
     sd.OVERRIDES = {}
     order = PHOTON_BEAMS + ELECTRON_BEAMS + SAD_BEAMS
 
+    beam_linac = [NAME] * len(PHOTON_BEAMS + ELECTRON_BEAMS) + [SAD_NAME] * len(SAD_BEAMS)
+    beam_modality = [b[0] for b in PHOTON_BEAMS + ELECTRON_BEAMS + SAD_BEAMS]
+    commons = {}
+
     def series(rng, months, **_ignored):                        # the seeder asks for one series per beam, in the order of the beams
         series.n += 1
         i = series.n - 1
-        return drift_series(rng, months, 1 if i % 2 == 0 else -1, PEAKS[i % len(PEAKS)], {})
+        name = beam_linac[i]
+        if name not in commons:                                 # the noise common to the beams of a linac
+            crng = random.Random(f"common|{name}")
+            commons[name] = [crng.gauss(0, 0.07) for _ in range(months)]
+        return drift_series(rng, months, EPISODES[name], GAIN[beam_modality[i]], commons[name])
     series.n = 0
     sd.deviation_series = series
     sd.RESERVE = []                                             # a clean list of equipment: only what the demonstration uses
