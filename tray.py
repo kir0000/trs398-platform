@@ -94,8 +94,25 @@ class Server:
     def __init__(self, port: int, lan: bool):
         import uvicorn
         from app.main import app
-        self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=port, log_level="warning", log_config=None))
-        self.thread = threading.Thread(target=self.server.run, name="trs398-server", daemon=True)
+        # the protocol modules are named explicitly: "auto" would pick up httptools/websockets left in the folder by an older version
+        # that was unpacked over this one, and the server would fail silently
+        self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=port, log_level="warning", log_config=None,
+                                                    http="h11", ws="none", loop="asyncio", lifespan="on"))
+        self.thread = threading.Thread(target=self.run, name="trs398-server", daemon=True)
+
+    def run(self):
+        """The server in its thread: a failure (or an exit nobody asked for) goes to crash.log, there is no console to show it."""
+        import traceback
+        try:
+            self.server.run()
+            failure = None if self.server.should_exit else "the server stopped without being asked to"
+        except BaseException:                               # noqa: BLE001 - includes SystemExit of a failed start-up
+            failure = traceback.format_exc()
+        if failure:
+            try:
+                (Path(os.environ["TRS_DATA"]) / "crash.log").write_text(failure, encoding="utf-8")
+            except OSError:
+                pass
 
     def start(self):
         self.thread.start()
