@@ -28,4 +28,15 @@ This does not replace encryption: the connection is still http.
 - The connection is not encrypted (http): passwords cross the network in clear text. Use it only inside the department network, never open the port to the internet. HTTPS is not included in version 2.0.
 - The backups lie on the server laptop; copy the `backups` folder to another medium.
 - 2-5 people working at the same time is safe: the database is a SQLite file, writes are made one after another.
+
+## How working together is organised
+
+- **One server, one database.** Everything is kept on the server laptop; the others work in the browser. Do not put the database file on a network folder and do not run two programs on one database: SQLite is not made for that.
+- **Writes one after another.** A write takes milliseconds, so two people saving at the same time do not disturb each other (checked: 3 authors and a reviewer, 190 requests in 6 seconds, 65 ms on average, no errors). Viewing pages does not block writing.
+- **Every record has one owner.** A draft and a returned record are edited by their author only; another person checks and approves (the rule of two persons).
+- **If two people press at the same moment.** A decision is made once: the second reviewer (or the author who edited a record while it was being approved) sees “The record has already been changed by another user: refresh the page”; nothing is lost or duplicated.
+- **Protocols.** The protocol numbers are issued by the database, two equal numbers cannot occur.
+- **Heavy operations.** Printed PDFs are built two at a time at most, the others wait their turn. A restore from a backup puts the others on a waiting page for a minute.
+- **Sign-in.** Everybody has their own account; a session is limited by age and by idle time (see “Limiting access”). The administrator can change a password.
+- **What the server laptop needs.** Switched on and awake, in the right network, makes a backup at night (at 02:00; if it was off, the backup is made at the next start). Copy the folder `backups` to another medium or switch on the “Second copy” on the “Backups” page.
 - If the laptop is in another subnet or the network blocks connections between computers, ask the network administrator to allow incoming TCP connections to port 8000.
