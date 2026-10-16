@@ -9,7 +9,7 @@ from app import trend_export
 from app.chart import control_chart
 from app.common import beam_label, beam_periods, key_label, trend_keys, trend_points
 from app.db import audit, get_db
-from app.web import check_csrf, current_lang, current_user, int_or_404, render, require
+from app.web import check_csrf, current_lang, current_user, form_data, int_or_404, render, require
 from core import compare, spc
 
 router = APIRouter()
@@ -198,8 +198,7 @@ def compare_export(request: Request, linac_id: str = "", modality: str = "all", 
 
 
 @router.post("/trends/baseline")
-async def set_baseline(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def set_baseline(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     beam_id = int_or_404(form.get("beam_id"), "Пучок")
     try:
@@ -216,8 +215,7 @@ async def set_baseline(request: Request, user=Depends(require("admin")), conn=De
 
 
 @router.post("/trends/baseline/delete")
-async def delete_baseline(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def delete_baseline(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     row = conn.execute("DELETE FROM spc_baseline WHERE id = %s RETURNING beam_id, from_date, to_date",
                        (int_or_404(form.get("id"), "Период"),)).fetchone()

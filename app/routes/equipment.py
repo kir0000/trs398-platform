@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app import auditlog, dbops, fields, services
 from app.common import REFERENCE_SAVED, beam_label, calibration_state
 from app.db import audit, get_db
-from app.web import check_csrf, current_user, int_or_404, render, require
+from app.web import check_csrf, current_user, form_data, int_or_404, render, require
 
 router = APIRouter()
 
@@ -96,8 +96,7 @@ def equipment(request: Request, tab: str = "beams", linac: str = "", saved: str 
 
 
 @router.post("/equipment/reference/delete")
-async def delete_reference(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def delete_reference(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     row = conn.execute("DELETE FROM beam_reference WHERE beam_id = %s AND chamber_unit_id = %s RETURNING beam_id",
                        (int_or_404(form.get("beam_id"), "Пучок"), int_or_404(form.get("chamber_unit_id"), "Камера"))).fetchone()
@@ -116,8 +115,7 @@ def beam_usage(conn, beam_id):
 
 
 @router.post("/equipment/linac/{lid}/rename")
-async def rename_linac(request: Request, lid: str, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def rename_linac(request: Request, lid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     name = form_text(form, "name")
     if not name:
@@ -138,8 +136,7 @@ async def rename_linac(request: Request, lid: str, user=Depends(require("admin")
 
 
 @router.post("/equipment/linac/{lid}/delete")
-async def delete_linac(request: Request, lid: str, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def delete_linac(request: Request, lid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     lid = int_or_404(lid, "Аппарат")
     n = conn.execute("SELECT count(*) AS n FROM beams WHERE linac_id = %s", (lid,)).fetchone()["n"]
@@ -153,8 +150,7 @@ async def delete_linac(request: Request, lid: str, user=Depends(require("admin")
 
 
 @router.post("/equipment/beam/{bid}/delete")
-async def delete_beam(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def delete_beam(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     bid = int_or_404(bid, "Пучок")
     use = beam_usage(conn, bid)
@@ -169,9 +165,8 @@ async def delete_beam(request: Request, bid: str, user=Depends(require("admin"))
 
 
 @router.post("/equipment/beam/{bid}/archive")
-async def archive_beam(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db)):
+def archive_beam(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     """A beam entered by mistake (or no longer used) leaves the choices of a new measurement; its records stay."""
-    form = await request.form()
     check_csrf(request, form)
     bid = int_or_404(bid, "Пучок")
     on = form.get("archived") != "0"
@@ -185,9 +180,8 @@ async def archive_beam(request: Request, bid: str, user=Depends(require("admin")
 
 
 @router.post("/equipment/beam/{bid}/purge")
-async def purge_beam(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db)):
+def purge_beam(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     """Delete a beam together with its drafts and returned records (never approved, superseded or annulled ones)."""
-    form = await request.form()
     check_csrf(request, form)
     bid = int_or_404(bid, "Пучок")
     use = beam_usage(conn, bid)
@@ -204,8 +198,7 @@ async def purge_beam(request: Request, bid: str, user=Depends(require("admin")),
 
 
 @router.post("/equipment/calibration/{cid}/delete")
-async def delete_calibration(request: Request, cid: str, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def delete_calibration(request: Request, cid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     cid = int_or_404(cid, "Калибровка")
     used = conn.execute("SELECT count(*) AS n FROM measurement_sessions WHERE calibration_id = %s",
@@ -223,8 +216,7 @@ async def delete_calibration(request: Request, cid: str, user=Depends(require("a
 
 
 @router.post("/equipment/linac")
-async def add_linac(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def add_linac(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     name = form_text(form, "name")
     if not name:
@@ -238,8 +230,7 @@ async def add_linac(request: Request, user=Depends(require("admin")), conn=Depen
 
 
 @router.post("/equipment/beam")
-async def add_beam(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def add_beam(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     modality = form.get("modality")
     if modality not in ("photon", "electron"):
@@ -322,8 +313,7 @@ def parse_calibration(form, conn):
 
 
 @router.post("/equipment/calibration")
-async def add_calibration(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def add_calibration(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     serial = form_text(form, "serial_no")
     if not serial:
@@ -358,8 +348,7 @@ def edit_calibration_form(request: Request, cid: str, user=Depends(require("admi
 
 
 @router.post("/equipment/calibration/{cid}/edit")
-async def edit_calibration(request: Request, cid: str, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def edit_calibration(request: Request, cid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     c = calibration_row(conn, cid)
     if c["used"]:
@@ -373,8 +362,7 @@ async def edit_calibration(request: Request, cid: str, user=Depends(require("adm
 
 
 @router.post("/equipment/beam/{bid}/params")
-async def beam_params(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def beam_params(request: Request, bid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
 
     def number(name, *_unused):          # the limits come from the table of fields (app/fields.py)

@@ -8,7 +8,7 @@ from app import netaccess, auditlog, backups, dbops, restore
 from app import settings as app_settings
 from app.db import audit, get_db
 from app.security import MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, hash_password, verify_password
-from app.web import check_csrf, int_or_404, render, require
+from app.web import check_csrf, form_data, int_or_404, render, require
 
 router = APIRouter()
 
@@ -29,8 +29,7 @@ def users_page(request: Request, user=Depends(require("admin")), conn=Depends(ge
 
 
 @router.post("/admin/users")
-async def users_action(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def users_action(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     action = form.get("action")
     if action == "create":
@@ -98,8 +97,7 @@ def settings_page(request: Request, saved: str = "", user=Depends(require("admin
 
 
 @router.post("/admin/settings", response_class=HTMLResponse)
-async def settings_save(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def settings_save(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     values, errors = app_settings.validate(dict(form))
     current = app_settings.load()
@@ -139,9 +137,8 @@ def restore_page(request: Request, name: str = "", user=Depends(require("admin")
 
 
 @router.post("/admin/backups/restore", response_class=HTMLResponse)
-async def restore_run(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+def restore_run(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     """Restore from a copy: a reason, the password and a word; the copy is checked and a safety copy of the current database is made first."""
-    form = await request.form()
     check_csrf(request, form)
     name, reason = str(form.get("name", "")), (form.get("reason") or "").strip()
     error = result = None
@@ -166,8 +163,7 @@ async def restore_run(request: Request, user=Depends(require("admin")), conn=Dep
 
 
 @router.post("/admin/backups/external")
-async def backup_external(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def backup_external(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     ok, message = backups.set_copy_dir(str(form.get("folder", "")))
     audit(conn, user["id"], "backup_copy_dir", "backups", None, {"folder": str(form.get("folder", ""))[:200], "ok": ok})
@@ -176,8 +172,7 @@ async def backup_external(request: Request, user=Depends(require("admin")), conn
 
 
 @router.post("/admin/backups/now")
-async def backup_now(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def backup_now(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     if not backups.request_now():
         raise HTTPException(503, "Не удалось отправить запрос службе копий. Сделайте копию вручную: пункт «Сделать резервную копию» в меню значка программы.")
@@ -192,8 +187,7 @@ def purge_page(request: Request, user=Depends(require("admin")), conn=Depends(ge
 
 
 @router.post("/admin/purge", response_class=HTMLResponse)
-async def purge(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
-    form = await request.form()
+def purge(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     scope, reason = form.get("scope"), (form.get("reason") or "").strip()
     error = None
@@ -228,9 +222,8 @@ def audit_clear_page(request: Request, user=Depends(require("admin")), conn=Depe
 
 
 @router.post("/admin/audit/clear", response_class=HTMLResponse)
-async def audit_clear(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+def audit_clear(request: Request, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     """The controlled clearing of the audit log: a reason, the password and a word; the archive and a safety copy are made first."""
-    form = await request.form()
     check_csrf(request, form)
     mode, reason = form.get("mode"), (form.get("reason") or "").strip()
     days_text = (form.get("days") or "").strip()

@@ -9,7 +9,7 @@ from app.common import REFERENCE_SAVED, beam_label, beam_periods, calibration_re
 from app.db import Jsonb, audit, get_db
 from app.pdf import PdfUnavailable, html_to_pdf
 from app.security import can_create, can_review
-from app.web import STATUS_LABELS, check_csrf, current_user, int_or_404, render, require
+from app.web import check_csrf, current_user, form_data, int_or_404, render, require, STATUS_LABELS
 
 router = APIRouter()
 
@@ -300,9 +300,8 @@ def reference_series(beam_id: str = "", calibration_id: str = "", source: str = 
 
 
 @router.post("/measurements/reference")
-async def save_reference(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
+def save_reference(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     """The values of the open worksheet become the reference of this beam with this chamber unit."""
-    form = await request.form()
     check_csrf(request, form)
     bid = int_or_404(form.get("beam_id"), "Пучок")
     unit = chamber_unit_of(conn, form.get("calibration_id"))
@@ -332,8 +331,7 @@ async def save_reference(request: Request, user=Depends(require("physicist", "ad
 
 
 @router.post("/measurements/preview", response_class=HTMLResponse)
-async def preview(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def preview(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     f = form_dict(form)
     modality = f.get("modality", "")
@@ -382,8 +380,7 @@ async def preview(request: Request, user=Depends(require("physicist", "admin")),
 
 
 @router.post("/measurements")
-async def create(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def create(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     f = form_dict(form)
     modality = f.get("modality", "")
@@ -492,8 +489,7 @@ def edit_form(request: Request, sid: str, user=Depends(require("physicist", "adm
 
 
 @router.post("/measurements/{sid}/edit")
-async def edit(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def edit(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     s = get_session_row(conn, sid)
     if s["created_by"] != user["id"] or s["status"] not in ("draft", "returned"):
@@ -506,17 +502,17 @@ async def edit(request: Request, sid: str, user=Depends(require("physicist", "ad
         return render(request, "form.html", user, status_code=422, modality=s["modality"], beams=beams, cals=cals,
                       f=f, error=str(e), action=f"/measurements/{s['id']}/edit", title=f"Правка записи №{s['id']}")
     cols = list(values)
-    conn.execute(f"UPDATE measurement_sessions SET {', '.join(f'{c} = %s' for c in cols)}, extra = %s, "
-                 f"status = 'draft', review_comment = NULL WHERE id = %s",
-                 [values[c] for c in cols] + [Jsonb(extra), s["id"]])
+    if not conn.execute(f"UPDATE measurement_sessions SET {', '.join(f'{c} = %s' for c in cols)}, extra = %s, "
+                        f"status = 'draft', review_comment = NULL WHERE id = %s AND status IN ('draft', 'returned')",
+                        [values[c] for c in cols] + [Jsonb(extra), s["id"]]).rowcount:
+        raise HTTPException(409, "Запись уже изменена другим пользователем: обновите страницу")
     save_results(conn, s["id"], res)
     audit(conn, user["id"], "edit", "measurement", s["id"],
           {"protocol_no": s["protocol_no"], "changes": auditlog.as_json(auditlog.diff(s, values))})
     return RedirectResponse(f"/measurements/{s['id']}", status_code=303)
 
 
-async def _transition(request, sid, user, conn, action):
-    form = await request.form()
+def _transition(request, sid, user, conn, action, form):
     check_csrf(request, form)
     s = get_session_row(conn, sid)
     comment = (form.get("comment") or "").strip()
@@ -525,7 +521,8 @@ async def _transition(request, sid, user, conn, action):
             raise HTTPException(403, "Отправить на проверку может автор черновика")
         if not conn.execute("SELECT 1 FROM results WHERE session_id = %s", (s["id"],)).fetchone():
             raise HTTPException(409, "Нет рассчитанного результата")
-        conn.execute("UPDATE measurement_sessions SET status = 'submitted' WHERE id = %s", (s["id"],))
+        if not conn.execute("UPDATE measurement_sessions SET status = 'submitted' WHERE id = %s AND status IN ('draft', 'returned')", (s["id"],)).rowcount:
+            raise HTTPException(409, "Запись уже изменена другим пользователем: обновите страницу")
     else:
         if not can_review(user["role"]):
             raise HTTPException(403, "Недостаточно прав")
@@ -534,38 +531,39 @@ async def _transition(request, sid, user, conn, action):
         if s["created_by"] == user["id"]:
             raise HTTPException(403, "Нельзя утверждать или возвращать собственную запись (правило двух лиц)")
         if action == "approve":
-            conn.execute("""UPDATE measurement_sessions SET status = 'approved', approved_by = %s, approved_at = now(),
-                            review_comment = NULLIF(%s, '') WHERE id = %s""", (user["id"], comment, s["id"]))
+            if not conn.execute("""UPDATE measurement_sessions SET status = 'approved', approved_by = %s, approved_at = now(),
+                            review_comment = NULLIF(%s, '') WHERE id = %s AND status = 'submitted'""", (user["id"], comment, s["id"])).rowcount:
+                raise HTTPException(409, "Запись уже изменена другим пользователем: обновите страницу")                 # two reviewers at once: the second one is told
             if s["supersedes_id"]:
                 conn.execute("UPDATE measurement_sessions SET status = 'superseded' WHERE id = %s",
                              (s["supersedes_id"],))
         else:
             if len(comment) < 3:
                 raise HTTPException(422, "При возврате укажите комментарий")
-            conn.execute("UPDATE measurement_sessions SET status = 'returned', review_comment = %s WHERE id = %s",
-                         (comment, s["id"]))
+            if not conn.execute("UPDATE measurement_sessions SET status = 'returned', review_comment = %s WHERE id = %s AND status = 'submitted'",
+                                (comment, s["id"])).rowcount:
+                raise HTTPException(409, "Запись уже изменена другим пользователем: обновите страницу")
     audit(conn, user["id"], action, "measurement", s["id"], {"comment": comment} if comment else {})
     return RedirectResponse(f"/measurements/{s['id']}", status_code=303)
 
 
 @router.post("/measurements/{sid}/submit")
-async def submit(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    return await _transition(request, sid, user, conn, "submit")
+def submit(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
+    return _transition(request, sid, user, conn, "submit", form)
 
 
 @router.post("/measurements/{sid}/approve")
-async def approve(request: Request, sid: str, user=Depends(require("reviewer", "admin")), conn=Depends(get_db)):
-    return await _transition(request, sid, user, conn, "approve")
+def approve(request: Request, sid: str, user=Depends(require("reviewer", "admin")), conn=Depends(get_db), form=Depends(form_data)):
+    return _transition(request, sid, user, conn, "approve", form)
 
 
 @router.post("/measurements/{sid}/return")
-async def return_(request: Request, sid: str, user=Depends(require("reviewer", "admin")), conn=Depends(get_db)):
-    return await _transition(request, sid, user, conn, "return")
+def return_(request: Request, sid: str, user=Depends(require("reviewer", "admin")), conn=Depends(get_db), form=Depends(form_data)):
+    return _transition(request, sid, user, conn, "return", form)
 
 
 @router.post("/measurements/{sid}/supersede")
-async def supersede(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def supersede(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     s = get_session_row(conn, sid)
     reason = (form.get("reason") or "").strip()
@@ -578,8 +576,10 @@ async def supersede(request: Request, sid: str, user=Depends(require("physicist"
             beam_quality, pdd_zref, tmr_zref, note, created_by, extra, supersedes_id, supersede_reason, ref_key)
         SELECT measured_on, beam_id, calibration_id, geometry, mu, pressure_kpa, temp_c, humidity_pct, v1, v2,
             m1_readings, m2_readings, m_plus_readings, m_minus_readings, beam_quality, pdd_zref, tmr_zref, note,
-            %s, extra, id, %s, ref_key FROM measurement_sessions WHERE id = %s RETURNING id""",
+            %s, extra, id, %s, ref_key FROM measurement_sessions WHERE id = %s AND status = 'approved' RETURNING id""",
                         (user["id"], reason, s["id"])).fetchone()
+    if not new:
+        raise HTTPException(409, "Запись уже изменена другим пользователем: обновите страницу")
     old = conn.execute("SELECT * FROM results WHERE session_id = %s", (s["id"],)).fetchone()
     if old:
         old.pop("session_id"), old.pop("computed_at")
@@ -589,9 +589,8 @@ async def supersede(request: Request, sid: str, user=Depends(require("physicist"
 
 
 @router.post("/measurements/{sid}/delete")
-async def delete_measurement(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
+def delete_measurement(request: Request, sid: str, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     """A draft or a returned record goes away (the author or an admin); the protocol number is not reused and the audit log keeps it."""
-    form = await request.form()
     check_csrf(request, form)
     s = get_session_row(conn, sid)
     if s["status"] not in ("draft", "returned"):
@@ -606,9 +605,8 @@ async def delete_measurement(request: Request, sid: str, user=Depends(require("p
 
 
 @router.post("/measurements/{sid}/void")
-async def void_measurement(request: Request, sid: str, user=Depends(require("admin")), conn=Depends(get_db)):
+def void_measurement(request: Request, sid: str, user=Depends(require("admin")), conn=Depends(get_db), form=Depends(form_data)):
     """An approved record is annulled, never deleted: it leaves trends and budgets, the protocol says ANNULLED."""
-    form = await request.form()
     check_csrf(request, form)
     s = get_session_row(conn, sid)
     reason = (form.get("reason") or "").strip()
@@ -616,8 +614,9 @@ async def void_measurement(request: Request, sid: str, user=Depends(require("adm
         raise HTTPException(409, "Аннулировать можно только утверждённую запись")
     if len(reason) < 5:
         raise HTTPException(422, "Укажите причину аннулирования (не короче 5 символов)")
-    conn.execute("""UPDATE measurement_sessions SET status = 'voided', void_reason = %s, voided_by = %s, voided_at = now()
-                    WHERE id = %s""", (reason, user["id"], s["id"]))
+    if not conn.execute("""UPDATE measurement_sessions SET status = 'voided', void_reason = %s, voided_by = %s, voided_at = now()
+                           WHERE id = %s AND status = 'approved'""", (reason, user["id"], s["id"])).rowcount:
+        raise HTTPException(409, "Запись уже изменена другим пользователем: обновите страницу")
     restored = None
     if s["supersedes_id"]:                  # the correction is annulled: the record it replaced is valid again
         done = conn.execute("UPDATE measurement_sessions SET status = 'approved' WHERE id = %s AND status = 'superseded' RETURNING id",

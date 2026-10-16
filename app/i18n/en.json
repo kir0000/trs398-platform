@@ -670,6 +670,7 @@
   "Запись заменена исправленной": "Record replaced by a corrected one",
   "Запись не найдена": "Record not found",
   "Запись не находится на проверке": "The record is not under review",
+  "Запись уже изменена другим пользователем: обновите страницу": "The record has already been changed by another user: refresh the page",
   "Запись утверждена": "Record approved",
   "Заполните логин, имя и роль": "Fill in the login, name and role",
   "Заполните показания (iii) и (iv): иначе опорных значений нет": "Fill in the readings (iii) and (iv): otherwise there are no reference values",

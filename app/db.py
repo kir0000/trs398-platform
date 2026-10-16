@@ -98,6 +98,11 @@ class Connection(sqlite3.Connection):
             super().execute("BEGIN IMMEDIATE")
         return super().execute(sql, tuple(params))
 
+    def lock(self) -> None:
+        """Take the write lock now: what is read after this cannot be changed by another writer before this transaction ends."""
+        if not self.in_transaction:
+            super().execute("BEGIN IMMEDIATE")
+
     def __exit__(self, exc_type, exc, tb):                       # `with connect() as conn`: commit or roll back, then close
         try:
             if exc_type is None:

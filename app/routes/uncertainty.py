@@ -9,7 +9,7 @@ from app import services
 from app.common import beam_label, beam_periods, trend_points, unc_settings
 from app.db import audit, get_db
 from app.notation import sym
-from app.web import check_csrf, current_user, render, require
+from app.web import check_csrf, current_user, form_data, render, require
 from core import electron as el_core
 from core import spc, uncertainty
 from core import uncertainty_distributions as udist
@@ -49,9 +49,8 @@ def unc_number(text, label):
 
 
 @router.post("/uncertainty/settings")
-async def unc_save(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
+def unc_save(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     """Save the values of the budget table: a value equal to the standard one switches the change off."""
-    form = await request.form()
     check_csrf(request, form)
     modality = form.get("modality")
     if modality not in ("photon", "electron"):
@@ -83,8 +82,7 @@ async def unc_save(request: Request, user=Depends(require("physicist", "admin"))
 
 
 @router.post("/uncertainty/settings/reset")
-async def unc_reset(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def unc_reset(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     modality = form.get("modality")
     if modality not in ("photon", "electron"):
@@ -96,8 +94,7 @@ async def unc_reset(request: Request, user=Depends(require("physicist", "admin")
 
 
 @router.post("/uncertainty/extra")
-async def unc_extra_add(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def unc_extra_add(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     modality, name = form.get("modality"), (form.get("name") or "").strip()
     stage = form.get("stage")
@@ -119,8 +116,7 @@ async def unc_extra_add(request: Request, user=Depends(require("physicist", "adm
 
 
 @router.post("/uncertainty/extra/delete")
-async def unc_extra_delete(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db)):
-    form = await request.form()
+def unc_extra_delete(request: Request, user=Depends(require("physicist", "admin")), conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     row = conn.execute("UPDATE uncertainty_settings SET active = false, updated_by = %s, updated_at = now() "
                        "WHERE modality = %s AND code = %s AND is_extra AND active RETURNING code",
