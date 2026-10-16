@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Восстановление из копии{% endblock %}
+{% block content %}
+<h1>Восстановление из копии</h1>
+<p><a href="/admin/backups">← К списку копий</a></p>
+{% if result %}
+<div class="card ok"><h2>База восстановлена</h2>
+  <p>Из копии <b>{{ result.name }}</b>: измерений в базе {{ result.measurements }}.{% if result.upgraded %} Применены миграции: {{ result.upgraded|join(', ') }}.{% endif %}</p>
+  <p>Прежняя база сохранена: <code>backups/keep/{{ result.safety_copy }}</code> (если восстановили не ту копию, восстановите эту).</p>
+  <p>Все пользователи вышли из системы, <a href="/login">войдите снова</a>.</p></div>
+{% else %}
+{% if error %}<div class="card err">{{ error }}</div>{% endif %}
+<div class="card" style="border-color:var(--{{ 'ok' if info.ok else 'bad' }})"><h2>Копия {{ info.name }}</h2>
+  {% if not info.ok %}<p class="err">{{ info.problem }}</p>
+  {% else %}
+  <table style="width:auto"><tr><th></th><th>В копии ({{ info.when.strftime('%d.%m.%Y %H:%M') }}, {{ info.size_kb }} КБ)</th><th>Сейчас в базе</th></tr>
+    <tr><td>Измерений</td><td>{{ info.theirs.measurements }}</td><td>{{ info.ours.measurements }}</td></tr>
+    <tr><td>Пользователей</td><td>{{ info.theirs.users }}</td><td>{{ info.ours.users }}</td></tr>
+    <tr><td>Последнее измерение</td><td>{{ info.theirs.last_measured or '—' }}</td><td>{{ info.ours.last_measured or '—' }}</td></tr>
+    <tr><td>Последняя запись журнала</td><td>{{ (info.theirs.last_audit or '—')|string|truncate(16, True, '') }}</td><td>{{ (info.ours.last_audit or '—')|string|truncate(16, True, '') }}</td></tr></table>
+  <p class="muted" style="font-size:13px">Копия проверена: читается и не повреждена.{% if info.upgrade %} Она старее программы: структура базы будет обновлена автоматически.{% endif %}</p>
+  <p class="warn"><b>Всё, что внесено после этой копии, пропадёт из рабочей базы</b>: измерения, пользователи и записи журнала. Перед заменой программа сохранит текущую базу в <code>backups/keep</code>, её можно вернуть таким же восстановлением. На время работы (около минуты) остальные пользователи увидят страницу ожидания, потом им придётся войти заново.</p>
+  <form method="post" action="/admin/backups/restore" class="stack" style="max-width:520px">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ info.name }}">
+    <label>Причина <input name="reason" value="{{ form.reason or '' }}" required minlength="5" style="width:100%"></label>
+    <label>Ваш пароль <input type="password" name="password" required autocomplete="current-password" style="width:100%"></label>
+    <label>Для подтверждения введите слово {{ word }} <input name="confirmation" required autocomplete="off" style="width:100%"></label>
+    <button class="primary" style="background:var(--bad)">Восстановить базу из этой копии</button></form>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

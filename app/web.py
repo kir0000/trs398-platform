@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup as _Markup
 
-from app import fields, health, i18n, settings
+from app import fields, health, i18n, restore, settings
 from app.db import get_db
 from app.notation import sym, sym_plain
 from app.security import ROLE_LABELS, LoginThrottle, can_create, can_review
@@ -84,6 +84,8 @@ def current_user(request: Request, conn=Depends(get_db)):
         raise NotAuthenticated()
     cfg = settings.load()
     why = check_session_lifetime(request.session, clock(), int(cfg["session_hours"]), int(cfg["session_idle_minutes"]))
+    if not why and request.session.get("login_at", 0) < restore.valid_from():          # the database was restored after this sign-in
+        why = "restored"
     if why:
         request.session.clear()
         raise NotAuthenticated(why)
