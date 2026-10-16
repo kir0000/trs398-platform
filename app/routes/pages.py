@@ -27,7 +27,7 @@ def set_language(request: Request, code: str, next: str = "/"):
 def login_page(request: Request, created: str = "", ended: str = "", conn=Depends(get_db)):
     if not has_users(conn):
         return RedirectResponse("/setup", status_code=303)             # first run: create the administrator
-    return render(request, "login.html", created=bool(created), ended=ended if ended in ("idle", "age") else "")
+    return render(request, "login.html", created=bool(created), ended=ended if ended in ("idle", "age", "restored") else "")
 
 
 @router.get("/setup", response_class=HTMLResponse)

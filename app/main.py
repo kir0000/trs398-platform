@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import applog, backups, health, netaccess, services
+from app import applog, backups, health, netaccess, restore, services
 from app.db import audit, connect, data_dir, migrate, request_ip, session_secret, system_event
 from app.db import has_data as db_has_data
 from app.db import pending as db_pending
@@ -113,6 +113,26 @@ async def remember_the_address(request: Request, call_next):
         return await call_next(request)
     finally:
         request_ip.reset(token)
+
+
+MAINTENANCE_PAGE = (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    '<meta http-equiv="refresh" content="8"><title>TRS-398</title>'
+    "<style>body{font:16px system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:0 16px;color:#222}</style></head><body>"
+    "<h1>Идёт восстановление базы</h1><p>Подождите минуту: страница обновится сама. Данные в это время не принимаются.</p>"
+    "<p>The database is being restored. Please wait a minute: the page reloads by itself. No data are accepted meanwhile.</p></body></html>")
+
+
+@app.middleware("http")
+async def maintenance_mode(request: Request, call_next):
+    """While the database is being restored (app/restore.py) every request gets the "wait" page; the running ones are counted."""
+    if restore.state.on and request.url.path != "/healthz":
+        return HTMLResponse(MAINTENANCE_PAGE, status_code=503, headers={"Retry-After": "10"})
+    restore.state.active += 1
+    try:
+        return await call_next(request)
+    finally:
+        restore.state.active -= 1
 
 
 @app.exception_handler(NotAuthenticated)

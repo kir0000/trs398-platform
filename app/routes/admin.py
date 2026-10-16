@@ -4,7 +4,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app import netaccess, auditlog, backups, dbops
+from app import netaccess, auditlog, backups, dbops, restore
 from app import settings as app_settings
 from app.db import audit, get_db
 from app.security import MIN_PASSWORD_LENGTH, ROLE_LABELS, ROLES, hash_password, verify_password
@@ -124,6 +124,45 @@ def backups_page(request: Request, requested: str = "", ext: str = "", extok: st
     return render(request, "admin_backups.html", user, backup=backups.latest(), files=backups.recent(), requested=bool(requested),
                   counts=purge_counts(conn), external=backups.external_status(), ext_message=ext[:300], ext_ok=extok == "1",
                   copy_dir=str(backups.copy_dir() or ""))
+
+
+RESTORE_WORD = "ВОССТАНОВИТЬ"
+
+
+@router.get("/admin/backups/restore", response_class=HTMLResponse)
+def restore_page(request: Request, name: str = "", user=Depends(require("admin"))):
+    try:
+        info = restore.preview(name)
+    except restore.RestoreError as e:
+        raise HTTPException(404, str(e))
+    return render(request, "admin_restore.html", user, info=info, word=RESTORE_WORD, error=None, result=None, form={})
+
+
+@router.post("/admin/backups/restore", response_class=HTMLResponse)
+async def restore_run(request: Request, user=Depends(require("admin")), conn=Depends(get_db)):
+    """Restore from a copy: a reason, the password and a word; the copy is checked and a safety copy of the current database is made first."""
+    form = await request.form()
+    check_csrf(request, form)
+    name, reason = str(form.get("name", "")), (form.get("reason") or "").strip()
+    error = result = None
+    if (form.get("confirmation") or "").strip().upper() != RESTORE_WORD:
+        error = f"Для подтверждения введите слово {RESTORE_WORD} заглавными буквами"
+    elif not verify_password(user["password_hash"], form.get("password") or ""):
+        audit(conn, user["id"], "restore_denied", "backups", None, {"file": name[:80], "why": "wrong password"})
+        error = "Неверный пароль"
+    login = user["login"]
+    if not error:
+        conn.commit()                                      # nothing of this request may stay open while the database is replaced
+        try:
+            result = restore.perform(login, name, reason)
+        except restore.RestoreError as e:
+            error = str(e)
+    try:
+        info = restore.preview(name)
+    except restore.RestoreError as e:
+        raise HTTPException(404, str(e))
+    return render(request, "admin_restore.html", user, status_code=422 if error else 200, info=info, word=RESTORE_WORD, error=error, result=result,
+                  form={"reason": reason})
 
 
 @router.post("/admin/backups/external")

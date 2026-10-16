@@ -22,11 +22,13 @@
   <p class="muted" style="font-size:13px;margin-bottom:0">Каждая новая копия дополнительно записывается в эту папку (хранятся те же 30 дней). Выберите другой диск, флешку, сетевую папку или папку, которую синхронизирует облако. Пустое поле выключает вторую копию.</p>
 </div>
 <div class="card"><h2>Последние файлы</h2>
-  <table class="sortable"><tr><th>Файл</th><th>Тип</th><th data-default="desc">Создан</th><th>КБ</th></tr>
-  {% for f in files %}<tr><td>{{ f.name }}</td><td>{{ f.kind }}</td><td>{{ f.when.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ f.size_kb }}</td></tr>
-  {% else %}<tr><td colspan="4" class="muted">Копий пока нет.</td></tr>{% endfor %}</table>
+  <table class="sortable"><tr><th>Файл</th><th>Тип</th><th data-default="desc">Создан</th><th>КБ</th><th></th></tr>
+  {% for f in files %}<tr><td>{{ f.name }}</td><td>{{ f.kind }}</td><td>{{ f.when.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ f.size_kb }}</td>
+    <td>{% if f.name.endswith('.db.gz') %}<a href="/admin/backups/restore?name={{ f.name|urlencode }}">Восстановить…</a>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">Копий пока нет.</td></tr>{% endfor %}</table>
 </div>
 <div class="card"><h2>Как восстановить базу</h2>
+  <p style="margin-top:0"><b>Из программы:</b> нажмите «Восстановить…» рядом с нужной копией в списке выше, проверьте, что будет потеряно, и подтвердите паролем. Если программа не открывается, используйте значок в трее:</p>
   <ol style="margin:0;padding-left:20px;line-height:1.7">
     <li>Щёлкните значок программы возле часов и выберите <b>«Восстановить из копии…»</b> (или ярлык «Восстановить из копии» в меню «Пуск»).</li>
     <li>В открывшемся окне выберите номер копии (1 — самая свежая) и введите <b>YES</b>.</li>
