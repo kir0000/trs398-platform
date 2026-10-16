@@ -105,6 +105,12 @@ def require(*roles):
     return dep
 
 
+async def form_data(request: Request):
+    """The submitted form. Read here, before the handler: the handlers are plain functions that run in worker threads, so a wait for the
+    database never blocks the event loop (a handler that waits for the write lock on the loop deadlocks with the request that holds it)."""
+    return await request.form()
+
+
 def csrf_token(request: Request) -> str:
     if "csrf" not in request.session:
         request.session["csrf"] = secrets.token_urlsafe(24)

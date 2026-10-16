@@ -6,7 +6,7 @@ from app import applog, backups, i18n, updates
 from app.db import audit, connect, data_dir, db_path, get_db
 from app.security import MIN_PASSWORD_LENGTH, hash_password, verify_password
 from app import health, web
-from app.web import BASE, app_version, check_csrf, current_lang, current_user, has_users, render, throttle
+from app.web import app_version, BASE, check_csrf, current_lang, current_user, form_data, has_users, render, throttle
 
 router = APIRouter()
 
@@ -38,9 +38,8 @@ def setup_page(request: Request, conn=Depends(get_db)):
 
 
 @router.post("/setup", response_class=HTMLResponse)
-async def setup(request: Request, conn=Depends(get_db)):
+def setup(request: Request, conn=Depends(get_db), form=Depends(form_data)):
     """First run only: the first account is the administrator, with a password chosen by the person who installs."""
-    form = await request.form()
     check_csrf(request, form)
     conn.execute("UPDATE schema_migrations SET name = name WHERE 0")      # opens the write transaction: two simultaneous submissions create one account
     if has_users(conn):
@@ -65,8 +64,7 @@ async def setup(request: Request, conn=Depends(get_db)):
 
 
 @router.post("/login")
-async def login(request: Request, conn=Depends(get_db)):
-    form = await request.form()
+def login(request: Request, conn=Depends(get_db), form=Depends(form_data)):
     check_csrf(request, form)
     login_name = (form.get("login") or "").strip()
     if throttle.blocked(login_name):
@@ -96,8 +94,7 @@ def system_event_for_user(uid, action, entity, entity_id=None, details=None):
 
 
 @router.post("/logout")
-async def logout(request: Request):
-    form = await request.form()
+def logout(request: Request, form=Depends(form_data)):
     check_csrf(request, form)
     uid = request.session.get("uid")
     if uid:
@@ -134,9 +131,8 @@ def about_page(request: Request, user=Depends(current_user)):
 
 
 @router.post("/about/check", response_class=HTMLResponse)
-async def about_check(request: Request, user=Depends(current_user)):
+def about_check(request: Request, user=Depends(current_user), form=Depends(form_data)):
     """The only place where the program talks to the internet, and only after this button."""
-    form = await request.form()
     check_csrf(request, form)
     return render(request, "about.html", user, **about_context(update=updates.check(app_version())))
 

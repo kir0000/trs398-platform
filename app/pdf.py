@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import threading
 import tempfile
 from pathlib import Path
 
@@ -36,10 +37,13 @@ def find_browser() -> str | None:
     return None
 
 
+_SLOTS = threading.BoundedSemaphore(2)             # a browser needs memory: two protocols at a time, the others wait their turn
+
+
 def html_to_pdf(html: str, timeout: int = 60) -> bytes:
     browser = find_browser()
     if browser:
-        with tempfile.TemporaryDirectory() as tmp:
+        with _SLOTS, tempfile.TemporaryDirectory() as tmp:
             src, out = Path(tmp) / "protocol.html", Path(tmp) / "protocol.pdf"
             src.write_text(html, encoding="utf-8")
             cmd = [browser, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-pdf-header-footer",

@@ -25,6 +25,7 @@ def _flag(conn, on: bool) -> None:
 
 def delete_draft(conn, session_id: int, actor: int) -> str:
     """A draft or a returned record is deleted (by its author or an admin); the protocol number is not reused. Returns the number."""
+    conn.lock()                                        # the status is checked and the record deleted without another writer in between
     a = conn.execute("SELECT * FROM users WHERE id = %s AND is_active", (actor,)).fetchone()
     if not a:
         raise MaintenanceError("unknown or inactive user")
